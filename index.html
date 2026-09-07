@@ -172,6 +172,19 @@
   .add-photo-btn{border:2px dashed var(--line);border-radius:8px;background:#fafbfc;color:var(--muted);
     padding:22px 10px;text-align:center;font-size:13px;cursor:pointer;}
 
+  .sig-pad-wrap{margin:8px 0 16px;}
+  .sig-canvas{width:100%;height:140px;border:1px dashed var(--line);border-radius:8px;background:#fff;
+    touch-action:none;display:block;cursor:crosshair;}
+  .sig-preview{border:1px solid var(--line);border-radius:8px;background:#fff;padding:8px;margin-bottom:6px;
+    display:flex;justify-content:center;}
+  .sig-preview img{max-width:220px;max-height:90px;display:block;}
+
+  .import-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:8px 0;border-top:1px solid rgba(0,0,0,.06);}
+  .import-row:first-of-type{border-top:none;}
+  .import-row input[type=text]{flex:1 1 110px;min-width:0;font-size:13px;padding:8px 9px;}
+  .import-row .iconbtn{flex-shrink:0;}
+  .import-count{font-size:12px;color:var(--muted);margin:6px 0 10px;}
+
   .impresa-card{border:1px solid var(--line);border-radius:8px;padding:12px;margin-bottom:10px;}
   .impresa-card .head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
   .impresa-card .head .name{font-weight:700;font-size:14px;}
@@ -292,6 +305,7 @@
   .doc-sigline .role{font-size:10.5px;color:#333;line-height:1.3;}
   .doc-sigline .nameline{border-bottom:1px solid #000;display:inline-block;min-width:220px;height:26px;}
   .doc-sigline .name{font-size:11.5px;font-weight:600;color:var(--doc-navy);margin-top:3px;}
+  .doc-sigline .sig-img{display:block;max-height:50px;max-width:220px;margin:0 0 -6px auto;}
 
   /* footer: Gill Sans MT 9pt (12px) codes left, page count right — measured from the docx's
      bottom-of-body 2-row table (ITG code + Allegato code stacked left, "Pagina N di M" right) */
@@ -418,6 +432,7 @@ function esc(s){ return (s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;',
 /* ======================= APP STATE ======================= */
 let DB = { cantieri:[], imprese:[], personale:[], frasi:[], destinatari:[], settings:{}, verbaliIndex:[], fasiLavoro:[] };
 let CURRENT_VERBALE = null;
+let IMPORT_PERSONALE = null; // {impresaId, raw, rows:null|Array<{nome,cognome,mansione}>}
 let ROUTE = {name:'accesso'};
 let toastTimer=null;
 
@@ -593,7 +608,10 @@ async function loadVerbale(id){
   v.altriPresenti = v.altriPresenti || v.presenti || [];
   v.assistenteCSE = v.assistenteCSE || '';
   v.firmaExtra = v.firmaExtra || {label:'Altra firma', nome:''};
-  (v.impreseCoinvolte||[]).forEach(i=>{ if(i.preposto===undefined) i.preposto=''; });
+  if(v.firmaExtra.img===undefined) v.firmaExtra.img = null;
+  if(v.firmaCSEImg===undefined) v.firmaCSEImg = null;
+  if(v.assistenteCSEImg===undefined) v.assistenteCSEImg = null;
+  (v.impreseCoinvolte||[]).forEach(i=>{ if(i.preposto===undefined) i.preposto=''; if(i.firmaPrepostoImg===undefined) i.firmaPrepostoImg=null; });
   return v;
 }
 async function saveVerbale(v){
@@ -626,7 +644,8 @@ function blankVerbale(cantiere){
     data: todayISO(),
     oraArrivoCantiere:'', oraFineSopralluogo:'', oraArrivoSede:'', oraRedazione:'',
     cse: DB.settings.cseDefault||'', assistenteCSE:'',
-    impreseCoinvolte: [], // {impresaId, nome, ruolo, preposto}
+    firmaCSEImg: null, assistenteCSEImg: null,
+    impreseCoinvolte: [], // {impresaId, nome, ruolo, preposto, firmaPrepostoImg}
     presentiPersonale: [], // personale ids present
     altriPresenti: [], // free text (CSE, DL, committente, ecc.)
     fasiLavoro: '',
@@ -634,7 +653,7 @@ function blankVerbale(cantiere){
     osservanze: [],
     sospensione: {attiva:false, contro:[], descrizione:'', propostaDa:'', propostaTesto:'', esito:'',
                   prescrizioniTesto:'', motivoRespinta:'', entroData:'', fotoFase:[], verificaAvvenuta:false, fotoRipristino:[]},
-    firmaExtra: {label:'Altra firma', nome:''},
+    firmaExtra: {label:'Altra firma', nome:'', img:null},
     destinatariSelezionati: [], modalitaInvio:{email:true, fax:false, brevimano:false},
     rimaneCantiere:true,
     createdAt: Date.now()
@@ -656,6 +675,7 @@ function render(){
     case 'impresa-edit': html=viewImpresaEdit(ROUTE.id); break;
     case 'personale': html=viewPersonale(); break;
     case 'personale-edit': html=viewPersonaleEdit(ROUTE.id); break;
+    case 'personale-import': html=viewPersonaleImport(ROUTE.impresaId); break;
     case 'frasi': html=viewFrasi(); break;
     case 'fasiLibreria': html=viewFasiLibreria(); break;
     case 'profilo': html=viewProfilo(); break;
@@ -865,7 +885,10 @@ function viewPersonale(){
           <button class="iconbtn" data-del-personale="${p.id}">🗑</button>
         </div>
       </div>`).join('') || `<div class="hint">Nessun dipendente per questa impresa.</div>`;
-    return `<section class="block"><h3>${esc(imp.nome)}</h3>${rows}</section>`;
+    return `<section class="block"><div class="item-row" style="border-bottom:none;padding-bottom:6px;">
+      <div class="main"><h3 style="margin:0;">${esc(imp.nome)}</h3></div>
+      <div class="actions"><button class="iconbtn" data-import-personale="${imp.id}">📥 Importa lista</button></div>
+    </div>${rows}</section>`;
   }).join('');
   return topWrap('Personale','Dipendenti/operai per impresa', `
     ${groups}
@@ -894,6 +917,71 @@ function viewPersonaleEdit(id){
     <div class="btn-row">
       <button class="btn secondary" data-go="personale">Annulla</button>
       <button class="btn" data-save-personale="${p.id}" data-new="${isNew}">Salva</button>
+    </div>
+  `);
+}
+
+function parsePersonaleLines(text){
+  return (text||'').split('\n').map(l=>l.trim()).filter(l=>l.length).map(line=>{
+    let parts;
+    if(line.includes('\t')) parts = line.split('\t');
+    else if(line.includes(';')) parts = line.split(';');
+    else if(line.includes(',')) parts = line.split(',');
+    else if(line.includes(' - ')) parts = line.split(' - ');
+    else if(line.includes(' – ')) parts = line.split(' – ');
+    else parts = [line];
+    parts = parts.map(s=>s.trim());
+    const nomeCompleto = parts[0]||'';
+    const mansione = parts[1]||'';
+    const words = nomeCompleto.split(/\s+/).filter(Boolean);
+    let nome='', cognome='';
+    if(words.length>=2){ cognome = words[words.length-1]; nome = words.slice(0,-1).join(' '); }
+    else { nome = words[0]||''; }
+    return {nome, cognome, mansione};
+  });
+}
+
+function viewPersonaleImport(impresaId){
+  const imp = DB.imprese.find(i=>i.id===impresaId);
+  if(!imp) return topWrap('Importa lista','', `<section class="block">${emptyState('👷','Impresa non trovata','')}</section>`);
+  if(!IMPORT_PERSONALE || IMPORT_PERSONALE.impresaId!==impresaId) IMPORT_PERSONALE = {impresaId, raw:'', rows:null};
+
+  if(!IMPORT_PERSONALE.rows){
+    return topWrap('Importa lista', esc(imp.nome), `
+      <section class="block">
+        <div class="hint">Incolla qui l'elenco degli operai/dipendenti — una persona per riga (es. copiato da Excel o da un file CSV/testo). Puoi indicare anche la mansione, separandola dal nome con una virgola o una tabulazione:</div>
+        <div class="hint" style="margin-top:4px;">Mario Rossi, Operaio<br>Luca Bianchi, Caposquadra<br>Anna Verdi</div>
+        <textarea id="import-raw" style="min-height:180px;margin-top:8px;" placeholder="Mario Rossi, Operaio&#10;Luca Bianchi, Caposquadra&#10;Anna Verdi">${esc(IMPORT_PERSONALE.raw)}</textarea>
+        <label class="btn small secondary" style="display:block;text-align:center;margin-top:10px;" for="import-file-input">📎 Oppure carica un file .csv / .txt</label>
+        <input type="file" id="import-file-input" accept=".csv,.txt,text/csv,text/plain" style="display:none;">
+      </section>
+      <div class="btn-row">
+        <button class="btn secondary" data-go="personale">Annulla</button>
+        <button class="btn" data-import-preview="1">Genera anteprima →</button>
+      </div>
+    `);
+  }
+
+  const rows = IMPORT_PERSONALE.rows;
+  const rowsHtml = rows.map((r,idx)=>`
+    <div class="import-row">
+      <input type="text" data-imp-field="nome" data-imp-idx="${idx}" value="${esc(r.nome)}" placeholder="Nome">
+      <input type="text" data-imp-field="cognome" data-imp-idx="${idx}" value="${esc(r.cognome)}" placeholder="Cognome">
+      <button class="iconbtn" data-imp-swap="${idx}" title="Inverti nome/cognome">⇄</button>
+      <input type="text" data-imp-field="mansione" data-imp-idx="${idx}" value="${esc(r.mansione)}" placeholder="Mansione (opz.)">
+      <button class="iconbtn" data-imp-remove="${idx}">🗑</button>
+    </div>`).join('') || `<div class="hint">Nessuna riga riconosciuta. Torna indietro e controlla il testo incollato.</div>`;
+  const validCount = rows.filter(r=>r.nome.trim() && r.cognome.trim()).length;
+
+  return topWrap('Anteprima importazione', esc(imp.nome), `
+    <section class="block">
+      <div class="hint">Controlla e correggi nome/cognome (usa ⇄ se sono invertiti), poi conferma. Le righe senza nome e cognome verranno ignorate.</div>
+      ${rowsHtml}
+      <div class="import-count">${validCount} di ${rows.length} righe pronte per l'importazione${rows.length!==validCount?' (le altre verranno ignorate)':''}</div>
+    </section>
+    <div class="btn-row">
+      <button class="btn secondary" data-import-back="1">← Modifica testo</button>
+      <button class="btn" data-import-commit="1" ${validCount===0?'disabled':''}>Importa ${validCount} dipendenti</button>
     </div>
   `);
 }
@@ -1370,20 +1458,61 @@ function wizSospensione(v){
   </section>`;
 }
 
+/* ---- firma grafica: disegno a mano libera o immagine caricata, per ciascuno dei 4 spazi firma
+   (CSE, assistente CSE, preposto per impresa, firma extra) — chiave testuale -> campo su CURRENT_VERBALE ---- */
+function getFirmaImg(v, key){
+  if(key==='cse') return v.firmaCSEImg||null;
+  if(key==='assistente') return v.assistenteCSEImg||null;
+  if(key==='extra') return (v.firmaExtra&&v.firmaExtra.img)||null;
+  const m = /^preposto-(\d+)$/.exec(key);
+  if(m && v.impreseCoinvolte[+m[1]]) return v.impreseCoinvolte[+m[1]].firmaPrepostoImg||null;
+  return null;
+}
+function setFirmaImg(v, key, val){
+  if(key==='cse'){ v.firmaCSEImg = val; return; }
+  if(key==='assistente'){ v.assistenteCSEImg = val; return; }
+  if(key==='extra'){ v.firmaExtra.img = val; return; }
+  const m = /^preposto-(\d+)$/.exec(key);
+  if(m && v.impreseCoinvolte[+m[1]]) v.impreseCoinvolte[+m[1]].firmaPrepostoImg = val;
+}
+function signatureBlock(key, img){
+  if(img){
+    return `
+    <div class="sig-pad-wrap" data-sig-key="${key}">
+      <div class="sig-preview"><img src="${img}" alt="Firma"></div>
+      <button class="btn small secondary" type="button" data-sig-redo="${key}">Cambia / rimuovi firma</button>
+    </div>`;
+  }
+  return `
+  <div class="sig-pad-wrap" data-sig-key="${key}">
+    <canvas class="sig-canvas" data-sig-canvas="${key}" width="600" height="160"></canvas>
+    <div class="hint">Disegna la firma col dito o il mouse nel riquadro sopra, oppure carica una foto/immagine della firma.</div>
+    <div class="btn-row">
+      <button class="btn small secondary" type="button" data-sig-erase="${key}">Cancella</button>
+      <button class="btn small" type="button" data-sig-save="${key}">Salva firma disegnata</button>
+    </div>
+    <label class="btn small secondary" style="display:block;text-align:center;margin-top:6px;" for="sig-file-${key}">📎 Carica immagine firma</label>
+    <input type="file" id="sig-file-${key}" data-sig-file="${key}" accept="image/*" style="display:none;">
+  </div>`;
+}
+
 function wizFirme(v){
   const prepostiRows = v.impreseCoinvolte.map((ic,idx)=>`
     <label>Preposto — ${esc(ic.nome)}</label>
     <input type="text" data-preposto-idx="${idx}" value="${esc(ic.preposto||'')}" placeholder="Nome e cognome del preposto">
+    ${signatureBlock('preposto-'+idx, ic.firmaPrepostoImg||null)}
   `).join('') || `<div class="hint">Aggiungi prima le imprese coinvolte per poter indicare i rispettivi preposti.</div>`;
 
   return `
   <section class="block">
     <h3>Firme del verbale</h3>
-    <div class="hint">Il documento finale riporta una riga firma per ciascun nominativo indicato qui sotto.</div>
+    <div class="hint">Il documento finale riporta una riga firma per ciascun nominativo indicato qui sotto. Per ogni firma puoi disegnarla col dito/mouse oppure caricare un'immagine — resta comunque possibile firmare a mano sul foglio stampato.</div>
     <label>Il coordinatore della sicurezza in fase di esecuzione (CSE)</label>
     <input type="text" id="w-cse-firma" value="${esc(v.cse)}">
+    ${signatureBlock('cse', v.firmaCSEImg||null)}
     <label>Assistente CSE</label>
     <input type="text" id="w-assistente-cse" value="${esc(v.assistenteCSE)}" placeholder="Nome e cognome (opzionale)">
+    ${signatureBlock('assistente', v.assistenteCSEImg||null)}
   </section>
   <section class="block">
     <h3>Preposto per ciascuna impresa</h3>
@@ -1395,6 +1524,7 @@ function wizFirme(v){
     <input type="text" id="w-extra-label" value="${esc(v.firmaExtra.label)}" placeholder="Es. Committente, Rappresentante ITG…">
     <label>Nome e cognome</label>
     <input type="text" id="w-extra-nome" value="${esc(v.firmaExtra.nome)}" placeholder="(opzionale)">
+    ${signatureBlock('extra', v.firmaExtra.img||null)}
   </section>`;
 }
 
@@ -1672,13 +1802,13 @@ function viewDocumento(){
 
   const invioHtml = chkInline(v.modalitaInvio.email,'e-mail') + chkInline(v.modalitaInvio.fax,'via fax') + chkInline(v.modalitaInvio.brevimano,'a brevi mano');
 
+  const docSigLine = (role, name, img) => `<div class="doc-sigline"><div class="role">${role}</div>${img?`<img class="sig-img" src="${img}">`:''}<div class="nameline"></div><div class="name">${esc(name)||' '}</div></div>`;
   const firmeHtml = `
     <div class="doc-signatures">
-      <div class="doc-sigline"><div class="role">Il coordinatore della sicurezza<br>in fase di esecuzione</div>
-        <div class="nameline"></div><div class="name">${esc(v.cse)||' '}</div></div>
-      ${v.assistenteCSE?`<div class="doc-sigline"><div class="role">Assistente CSE</div><div class="nameline"></div><div class="name">${esc(v.assistenteCSE)}</div></div>`:''}
-      ${v.impreseCoinvolte.map(i=>`<div class="doc-sigline"><div class="role">Preposto — ${esc(i.nome)}</div><div class="nameline"></div><div class="name">${esc(i.preposto)||' '}</div></div>`).join('')}
-      ${v.firmaExtra && v.firmaExtra.nome?`<div class="doc-sigline"><div class="role">${esc(v.firmaExtra.label||'Altra firma')}</div><div class="nameline"></div><div class="name">${esc(v.firmaExtra.nome)}</div></div>`:''}
+      ${docSigLine('Il coordinatore della sicurezza<br>in fase di esecuzione', v.cse, v.firmaCSEImg)}
+      ${v.assistenteCSE?docSigLine('Assistente CSE', v.assistenteCSE, v.assistenteCSEImg):''}
+      ${v.impreseCoinvolte.map(i=>docSigLine('Preposto — '+esc(i.nome), i.preposto, i.firmaPrepostoImg)).join('')}
+      ${v.firmaExtra && v.firmaExtra.nome?docSigLine(esc(v.firmaExtra.label||'Altra firma'), v.firmaExtra.nome, v.firmaExtra.img):''}
     </div>`;
 
   const lastPage = `
@@ -2026,14 +2156,15 @@ function buildWordHTML(v){
     .map(d=>chk(true, `Sig. <span style="${u()}">${esc(d.nome)}</span>${d.ruolo?' - '+esc(d.ruolo):''}${d.email?' &nbsp; e-mail '+esc(d.email):''}`)).join('') || '<p style="font-size:11px;color:#5b6b7c;">Nessun destinatario selezionato.</p>';
   const invioHtml = chkInline(v.modalitaInvio.email,'e-mail') + chkInline(v.modalitaInvio.fax,'via fax') + chkInline(v.modalitaInvio.brevimano,'a brevi mano');
 
-  const sigLine = (role,name)=>`<table width="100%" style="margin-top:22px;"><tr><td align="right">
+  const sigLine = (role,name,img)=>`<table width="100%" style="margin-top:22px;"><tr><td align="right">
     <span style="font-size:10.5px;color:#333;">${esc(role)}</span><br>
+    ${img?`<img src="${img}" style="max-height:50px;max-width:220px;display:block;margin:4px 0 -6px auto;"><br>`:''}
     <span style="display:inline-block;min-width:220px;border-bottom:1px solid #000;height:24px;"></span><br>
     <span style="font-size:11.5px;font-weight:bold;color:${NAVY};">${esc(name)||'&nbsp;'}</span></td></tr></table>`;
-  let firme = sigLine('Il coordinatore della sicurezza in fase di esecuzione', v.cse);
-  if(v.assistenteCSE) firme += sigLine('Assistente CSE', v.assistenteCSE);
-  v.impreseCoinvolte.forEach(i=> firme += sigLine('Preposto — '+i.nome, i.preposto));
-  if(v.firmaExtra && v.firmaExtra.nome) firme += sigLine(v.firmaExtra.label||'Altra firma', v.firmaExtra.nome);
+  let firme = sigLine('Il coordinatore della sicurezza in fase di esecuzione', v.cse, v.firmaCSEImg);
+  if(v.assistenteCSE) firme += sigLine('Assistente CSE', v.assistenteCSE, v.assistenteCSEImg);
+  v.impreseCoinvolte.forEach(i=> firme += sigLine('Preposto — '+i.nome, i.preposto, i.firmaPrepostoImg));
+  if(v.firmaExtra && v.firmaExtra.nome) firme += sigLine(v.firmaExtra.label||'Altra firma', v.firmaExtra.nome, v.firmaExtra.img);
 
   const lastPage = `<div style="${pageStyle}font-family:Arial,sans-serif;font-size:12.5px;">
     ${logoImg()}
@@ -2157,6 +2288,61 @@ function attachHandlers(){
       qualifica:document.getElementById('f-qualifica').value.trim(), note:document.getElementById('f-note').value.trim()};
     if(isNew) DB.personale.push(obj); else DB.personale[DB.personale.findIndex(c=>c.id===id)]=obj;
     await sset(KEYS.personale, DB.personale); toast('Dipendente salvato'); go({name:'personale'});
+  });
+
+  app.querySelectorAll('[data-import-personale]').forEach(el=>el.addEventListener('click', ()=>{
+    IMPORT_PERSONALE = {impresaId:el.dataset.importPersonale, raw:'', rows:null};
+    go({name:'personale-import', impresaId:el.dataset.importPersonale});
+  }));
+  const importRawEl = app.querySelector('#import-raw');
+  if(importRawEl) importRawEl.addEventListener('input', ()=>{ if(IMPORT_PERSONALE) IMPORT_PERSONALE.raw = importRawEl.value; });
+  const importFileInput = app.querySelector('#import-file-input');
+  if(importFileInput) importFileInput.addEventListener('change', e=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if(IMPORT_PERSONALE) IMPORT_PERSONALE.raw = String(reader.result||'');
+      render();
+    };
+    reader.readAsText(file);
+  });
+  const importPreviewBtn = app.querySelector('[data-import-preview]');
+  if(importPreviewBtn) importPreviewBtn.addEventListener('click', ()=>{
+    const raw = importRawEl ? importRawEl.value : (IMPORT_PERSONALE?IMPORT_PERSONALE.raw:'');
+    const rows = parsePersonaleLines(raw);
+    if(!rows.length){ toast('Incolla o carica prima un elenco di nominativi.'); return; }
+    IMPORT_PERSONALE.raw = raw; IMPORT_PERSONALE.rows = rows; render();
+  });
+  const importBackBtn = app.querySelector('[data-import-back]');
+  if(importBackBtn) importBackBtn.addEventListener('click', ()=>{ IMPORT_PERSONALE.rows = null; render(); });
+  app.querySelectorAll('[data-imp-field]').forEach(inp=>inp.addEventListener('input', ()=>{
+    const idx = +inp.dataset.impIdx, field = inp.dataset.impField;
+    if(IMPORT_PERSONALE && IMPORT_PERSONALE.rows[idx]) IMPORT_PERSONALE.rows[idx][field] = inp.value;
+  }));
+  app.querySelectorAll('[data-imp-swap]').forEach(btn=>btn.addEventListener('click', ()=>{
+    const idx = +btn.dataset.impSwap;
+    const r = IMPORT_PERSONALE.rows[idx];
+    const tmp = r.nome; r.nome = r.cognome; r.cognome = tmp;
+    render();
+  }));
+  app.querySelectorAll('[data-imp-remove]').forEach(btn=>btn.addEventListener('click', ()=>{
+    const idx = +btn.dataset.impRemove;
+    IMPORT_PERSONALE.rows.splice(idx,1);
+    render();
+  }));
+  const importCommitBtn = app.querySelector('[data-import-commit]');
+  if(importCommitBtn) importCommitBtn.addEventListener('click', async ()=>{
+    const valid = IMPORT_PERSONALE.rows.filter(r=>r.nome.trim() && r.cognome.trim());
+    if(!valid.length){ toast('Nessuna riga valida da importare.'); return; }
+    valid.forEach(r=>{
+      DB.personale.push({id:uid(), nome:r.nome.trim(), cognome:r.cognome.trim(), impresaId:IMPORT_PERSONALE.impresaId,
+        mansione:(r.mansione||'').trim(), qualifica:'', note:''});
+    });
+    await sset(KEYS.personale, DB.personale);
+    toast(`${valid.length} dipendenti importati`);
+    IMPORT_PERSONALE = null;
+    go({name:'personale'});
   });
 
   app.querySelectorAll('[data-edit-dest]').forEach(el=>el.addEventListener('click', ()=>go({name:'destinatario-edit', id:el.dataset.editDest})));
@@ -2312,7 +2498,7 @@ function attachHandlers(){
     const sel = document.getElementById('w-add-impresa');
     const impresa = DB.imprese.find(i=>i.id===sel.value);
     if(!impresa) return;
-    CURRENT_VERBALE.impreseCoinvolte.push({impresaId:impresa.id, nome:impresa.nome, ruolo:IMPRESA_RUOLI[0], preposto:''});
+    CURRENT_VERBALE.impreseCoinvolte.push({impresaId:impresa.id, nome:impresa.nome, ruolo:IMPRESA_RUOLI[0], preposto:'', firmaPrepostoImg:null});
     render();
   });
   app.querySelectorAll('[data-rm-impresa-verbale]').forEach(el=>el.addEventListener('click', ()=>{
@@ -2459,6 +2645,54 @@ function attachHandlers(){
   const prepostiInputs = app.querySelectorAll('[data-preposto-idx]');
   prepostiInputs.forEach(el=>el.addEventListener('input', ()=>{
     CURRENT_VERBALE.impreseCoinvolte[+el.dataset.prepostoIdx].preposto = el.value;
+  }));
+
+  // firma grafica — disegno a mano libera (pointer events: dito/mouse/pen) o immagine caricata
+  app.querySelectorAll('[data-sig-canvas]').forEach(canvas=>{
+    const ctx = canvas.getContext('2d');
+    ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#111';
+    canvas._hasDrawing = false;
+    let drawing = false, lastX = 0, lastY = 0;
+    const posFromEvent = e => {
+      const r = canvas.getBoundingClientRect();
+      const sx = canvas.width / r.width, sy = canvas.height / r.height;
+      return { x: (e.clientX - r.left) * sx, y: (e.clientY - r.top) * sy };
+    };
+    canvas.addEventListener('pointerdown', e => {
+      drawing = true; canvas.setPointerCapture(e.pointerId);
+      const p = posFromEvent(e); lastX = p.x; lastY = p.y;
+      e.preventDefault();
+    });
+    canvas.addEventListener('pointermove', e => {
+      if(!drawing) return;
+      const p = posFromEvent(e);
+      ctx.beginPath(); ctx.moveTo(lastX, lastY); ctx.lineTo(p.x, p.y); ctx.stroke();
+      lastX = p.x; lastY = p.y; canvas._hasDrawing = true;
+    });
+    const stopDrawing = () => { drawing = false; };
+    canvas.addEventListener('pointerup', stopDrawing);
+    canvas.addEventListener('pointerleave', stopDrawing);
+    canvas.addEventListener('pointercancel', stopDrawing);
+  });
+  app.querySelectorAll('[data-sig-erase]').forEach(btn=>btn.addEventListener('click', ()=>{
+    const canvas = app.querySelector(`[data-sig-canvas="${btn.dataset.sigErase}"]`);
+    if(canvas){ canvas.getContext('2d').clearRect(0,0,canvas.width,canvas.height); canvas._hasDrawing = false; }
+  }));
+  app.querySelectorAll('[data-sig-save]').forEach(btn=>btn.addEventListener('click', ()=>{
+    const key = btn.dataset.sigSave;
+    const canvas = app.querySelector(`[data-sig-canvas="${key}"]`);
+    if(!canvas || !canvas._hasDrawing){ toast('Disegna prima la firma nel riquadro.'); return; }
+    setFirmaImg(CURRENT_VERBALE, key, canvas.toDataURL('image/png'));
+    toast('Firma salvata'); render();
+  }));
+  app.querySelectorAll('[data-sig-redo]').forEach(btn=>btn.addEventListener('click', ()=>{
+    setFirmaImg(CURRENT_VERBALE, btn.dataset.sigRedo, null); render();
+  }));
+  app.querySelectorAll('[data-sig-file]').forEach(inp=>inp.addEventListener('change', e=>{
+    const key = inp.dataset.sigFile;
+    const file = e.target.files[0];
+    if(!file) return;
+    resizeImage(file, dataUrl=>{ setFirmaImg(CURRENT_VERBALE, key, dataUrl); toast('Firma caricata'); render(); });
   }));
 
   // destinatari
