@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'v6';
+const CACHE_VERSION = 'v7';
 const CACHE_NAME = `verbali-cse-${CACHE_VERSION}`;
 
 const APP_SHELL = [
@@ -30,9 +30,28 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+const NETWORK_FIRST = (req) =>
+  req.mode === 'navigate' ||
+  req.destination === 'document' ||
+  req.url.endsWith('/index.html') ||
+  req.url.endsWith('/manifest.json');
+
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
+
+  if (NETWORK_FIRST(req)) {
+    event.respondWith(
+      fetch(req).then((networkResp) => {
+        if (networkResp && networkResp.status === 200) {
+          const respClone = networkResp.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(req, respClone));
+        }
+        return networkResp;
+      }).catch(() => caches.match(req).then((cached) => cached || caches.match('./index.html')))
+    );
+    return;
+  }
 
   event.respondWith(
     caches.match(req).then((cached) => {
@@ -42,10 +61,7 @@ self.addEventListener('fetch', (event) => {
           caches.open(CACHE_NAME).then((cache) => cache.put(req, respClone));
         }
         return networkResp;
-      }).catch(() => {
-        if (req.mode === 'navigate') return caches.match('./index.html');
-        return cached;
-      });
+      }).catch(() => cached);
 
       return cached || fetchPromise;
     })
