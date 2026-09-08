@@ -48,9 +48,9 @@
   .brand-header{position:sticky;top:0;z-index:21;background:#fff;border-bottom:1px solid var(--line);
     max-width:720px;margin:0 auto;padding:calc(7px + env(safe-area-inset-top)) 14px 7px;
     display:flex;align-items:center;gap:8px;}
-  .brand-spacer{flex:0 0 112px;}
-  .brand-logo-wrap{flex:1;min-width:0;display:flex;justify-content:center;}
-  .brand-header img{height:49.3px;width:auto;display:block;}
+  .brand-spacer{flex:0 0 0;}
+  .brand-logo-wrap{flex:1;min-width:0;display:flex;justify-content:flex-start;}
+  .brand-header img{height:29.6px;width:auto;display:block;}
   .profile-badge{flex:0 0 112px;width:112px;overflow:hidden;display:flex;visibility:hidden;
     align-items:center;gap:5px;background:var(--bg);
     border:1px solid var(--line);border-radius:999px;padding:3px 11px 3px 3px;font-size:10.5px;
@@ -632,6 +632,7 @@ async function boot(){
   }
   DB.verbaliIndex = await sget(KEYS.index, []);
   render();
+  initCloudSync();
 }
 
 async function loadVerbale(id){
@@ -657,14 +658,56 @@ async function saveVerbale(v){
   await sset('verbale:'+v.id, v);
   const idx = DB.verbaliIndex.findIndex(x=>x.id===v.id);
   const entry = {id:v.id, numero:v.numero, anno:v.anno, cantiereId:v.cantiereId, cantiereNome:v.cantiereNome,
-                 data:v.data, stato:v.stato||'bozza', createdAt:v.createdAt};
+                 data:v.data, stato:v.stato||'bozza', createdAt:v.createdAt, cse:v.cse||''};
   if(idx>=0) DB.verbaliIndex[idx]=entry; else DB.verbaliIndex.unshift(entry);
   await sset(KEYS.index, DB.verbaliIndex);
+  cloudSyncVerbaleIndice(entry, v);
 }
 async function deleteVerbale(id){
   await sdel('verbale:'+id);
   DB.verbaliIndex = DB.verbaliIndex.filter(x=>x.id!==id);
   await sset(KEYS.index, DB.verbaliIndex);
+  cloudDeleteVerbaleIndice(id);
+}
+
+/* ======================= SINCRONIZZAZIONE CLOUD DELL'INDICE VERBALI (tra dispositivi) =======================
+   Collega l'Archivio verbali a tutti i dispositivi che usano l'app: ogni volta che un verbale viene salvato
+   (bozza o definitivo), un piccolo riepilogo (cantiere, data, numero, CHI lo ha compilato) viene copiato in un
+   archivio condiviso, visibile in tempo reale da qualunque dispositivo collegato alla stessa app. NON vengono
+   MAI sincronizzate le foto né il resto del contenuto del verbale (checklist, prescrizioni, firme): restano
+   solo sul dispositivo che ha creato quel verbale, dove si può ancora aprirlo, modificarlo e generare PDF/Word.
+   Un verbale creato da un altro dispositivo compare quindi nell'Archivio di questo dispositivo come voce
+   "di sola consultazione" (si vede cantiere/data/numero/compilatore, ma non si può aprire da qui).
+   Funziona SOLO nella versione app pubblicata (richiede la capacità "db" della piattaforma Claude, attivata
+   in fase di pubblicazione): nel file HTML scaricabile, o se questa capacità non è disponibile, tutto questo
+   blocco resta inattivo (no-op) e l'app continua a funzionare normalmente solo in locale, come sempre. */
+let CLOUD_DB = null;
+let CLOUD_VERBALI = [];
+async function initCloudSync(){
+  try{
+    if(!window.claude || typeof window.claude.use!=='function') return; // file HTML scaricabile: nessuna sincronizzazione
+    CLOUD_DB = await window.claude.use('db');
+    if(!CLOUD_DB) return; // capacità non disponibile in questa vista
+    CLOUD_DB.collection('verbali').orderBy('createdAt','desc').limit(500).onSnapshot(
+      snap => { CLOUD_VERBALI = snap.docs.map(d=>({id:d.id, ...d.data()})); if(ROUTE.name==='archivio') render(); },
+      err => { console.error('sincronizzazione archivio verbali non riuscita', err); }
+    );
+  }catch(e){ console.error(e); }
+}
+async function cloudSyncVerbaleIndice(entry, v){
+  try{
+    if(!CLOUD_DB) return;
+    await CLOUD_DB.collection('verbali').doc(entry.id).set({
+      numero: entry.numero, anno: entry.anno,
+      cantiereId: entry.cantiereId, cantiereNome: entry.cantiereNome,
+      comune: v.comune||'', provincia: v.provincia||'', sito: v.sito||'', tipologiaLavoro: v.tipologiaLavoro||'',
+      data: entry.data, stato: entry.stato, createdAt: entry.createdAt,
+      cse: v.cse||'', aggiornatoIl: new Date().toISOString(),
+    });
+  }catch(e){ console.error('sincronizzazione cloud del verbale non riuscita (il verbale resta comunque salvato in locale)', e); }
+}
+async function cloudDeleteVerbaleIndice(id){
+  try{ if(CLOUD_DB) await CLOUD_DB.collection('verbali').doc(id).delete(); }catch(e){ console.error(e); }
 }
 
 function nextNumero(cantiereId){
@@ -1170,21 +1213,40 @@ function viewDestinatarioEdit(id){
    l'import fa un merge "intelligente": le imprese/i cantieri già presenti (stesso nome) non vengono
    duplicati, e i riferimenti impresaId del personale importato vengono ricollegati correttamente
    all'impresa locale corrispondente (nuova o già esistente). */
-function buildDatiArchivioExport(){
-  return {
+// `sezioni` indica quali sezioni includere nell'esportazione, es. {cantieri:true, imprese:false, personale:true}.
+// Le Imprese vengono comunque incluse (solo come riferimento) anche quando non selezionate esplicitamente,
+// se si esporta il Personale: servono per ricollegare correttamente le persone alle rispettive imprese
+// quando il file viene importato su un altro dispositivo.
+function buildDatiArchivioExport(sezioni){
+  const sel = sezioni || {cantieri:true, imprese:true, personale:true, frasi:true, fasiLavoro:true, destinatari:true};
+  const out = {
     tipo: 'gdg-verbali-cse-export',
     versione: 1,
     esportatoIl: new Date().toISOString(),
-    cantieri: DB.cantieri,
-    imprese: DB.imprese,
-    personale: DB.personale,
+    sezioni: {cantieri:!!sel.cantieri, imprese:!!sel.imprese, personale:!!sel.personale, frasi:!!sel.frasi, fasiLavoro:!!sel.fasiLavoro, destinatari:!!sel.destinatari},
   };
+  if(sel.cantieri) out.cantieri = DB.cantieri;
+  if(sel.imprese || sel.personale) out.imprese = DB.imprese;
+  if(sel.personale) out.personale = DB.personale;
+  if(sel.frasi) out.frasi = DB.frasi;
+  if(sel.fasiLavoro) out.fasiLavoro = DB.fasiLavoro;
+  if(sel.destinatari) out.destinatari = DB.destinatari;
+  return out;
 }
-async function esportaDatiArchivio(){
+async function esportaDatiArchivio(sezioni){
+  const sel = sezioni || {cantieri:true, imprese:true, personale:true, frasi:true, fasiLavoro:true, destinatari:true};
+  if(!sel.cantieri && !sel.imprese && !sel.personale && !sel.frasi && !sel.fasiLavoro && !sel.destinatari){ toast('Seleziona almeno una sezione da esportare.'); return; }
   try{
-    const json = JSON.stringify(buildDatiArchivioExport(), null, 2);
+    const json = JSON.stringify(buildDatiArchivioExport(sel), null, 2);
     const blob = new Blob([json], {type:'application/json'});
-    const filename = `gdg-dati-cantieri-imprese-personale-${todayISO()}.json`;
+    const parts = [];
+    if(sel.cantieri) parts.push('cantieri');
+    if(sel.imprese) parts.push('imprese');
+    if(sel.personale) parts.push('personale');
+    if(sel.frasi) parts.push('osservanze');
+    if(sel.fasiLavoro) parts.push('fasi-lavoro');
+    if(sel.destinatari) parts.push('destinatari');
+    const filename = `gdg-dati-${parts.join('-')}-${todayISO()}.json`;
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url; a.download = filename;
@@ -1193,54 +1255,111 @@ async function esportaDatiArchivio(){
     toast('Dati esportati');
   }catch(e){ console.error(e); toast('Errore nell\'esportazione dei dati.'); }
 }
-// unisce i dati importati in DB.cantieri/imprese/personale evitando duplicati (confronto per nome) e
-// ricollegando correttamente il personale importato all'impresa giusta (nuova o già esistente in locale)
-function importDatiArchivio(data){
-  const stats = {cantieriNuovi:0, cantieriEsistenti:0, impreseNuove:0, impreseEsistenti:0, personaleNuovo:0, personaleEsistente:0};
+// unisce i dati importati in DB.cantieri/imprese/personale SENZA MAI cancellare o sovrascrivere quanto già
+// presente: ogni record viene solo aggiunto se non già esistente (confronto per nome), evitando duplicati,
+// e ricollegando correttamente il personale importato all'impresa giusta (nuova o già esistente in locale).
+// `sezioni` indica quali sezioni importare davvero (es. {cantieri:false, imprese:false, personale:true}):
+// le imprese presenti nel file vengono comunque usate per il solo ricollegamento del personale anche se
+// la sezione Imprese non è selezionata, ma in quel caso non viene creata nessuna nuova impresa — il
+// personale la cui impresa non esiste già in locale (stesso nome) viene ignorato (stats.personaleSaltato).
+function importDatiArchivio(data, sezioni){
+  const sel = sezioni || {cantieri:true, imprese:true, personale:true, frasi:true, fasiLavoro:true, destinatari:true};
+  const stats = {cantieriNuovi:0, cantieriEsistenti:0, impreseNuove:0, impreseEsistenti:0, personaleNuovo:0, personaleEsistente:0, personaleSaltato:0,
+    frasiNuove:0, frasiEsistenti:0, fasiLavoroVociNuove:0, fasiLavoroVociEsistenti:0, fasiLavoroCategorieNuove:0, destinatariNuovi:0, destinatariEsistenti:0};
   const impresaIdMap = {};
 
   (data.imprese||[]).forEach(imp=>{
     const existing = DB.imprese.find(x=>(x.nome||'').trim().toLowerCase()===(imp.nome||'').trim().toLowerCase());
-    if(existing){ impresaIdMap[imp.id] = existing.id; stats.impreseEsistenti++; }
-    else{
+    if(existing){
+      impresaIdMap[imp.id] = existing.id;
+      if(sel.imprese) stats.impreseEsistenti++;
+    } else if(sel.imprese){
       const newId = uid();
       DB.imprese.push({...imp, id:newId});
       impresaIdMap[imp.id] = newId;
       stats.impreseNuove++;
     }
+    // se la sezione Imprese non è selezionata e l'impresa non esiste già in locale, resta senza
+    // mappatura: il personale eventualmente collegato a questa impresa verrà ignorato più sotto,
+    // per non creare collegamenti a un'impresa inesistente.
   });
 
-  (data.cantieri||[]).forEach(c=>{
-    const existing = DB.cantieri.find(x=>(x.nome||'').trim().toLowerCase()===(c.nome||'').trim().toLowerCase());
-    if(existing){ stats.cantieriEsistenti++; }
-    else{ DB.cantieri.push({...c, id:uid()}); stats.cantieriNuovi++; }
-  });
+  if(sel.cantieri){
+    (data.cantieri||[]).forEach(c=>{
+      const existing = DB.cantieri.find(x=>(x.nome||'').trim().toLowerCase()===(c.nome||'').trim().toLowerCase());
+      if(existing){ stats.cantieriEsistenti++; }
+      else{ DB.cantieri.push({...c, id:uid()}); stats.cantieriNuovi++; }
+    });
+  }
 
-  (data.personale||[]).forEach(p=>{
-    const localImpresaId = impresaIdMap[p.impresaId] || p.impresaId;
-    const dup = DB.personale.find(x=>x.impresaId===localImpresaId
-      && (x.nome||'').trim().toLowerCase()===(p.nome||'').trim().toLowerCase()
-      && (x.cognome||'').trim().toLowerCase()===(p.cognome||'').trim().toLowerCase());
-    if(dup){ stats.personaleEsistente++; }
-    else{ DB.personale.push({...p, id:uid(), impresaId:localImpresaId}); stats.personaleNuovo++; }
-  });
+  if(sel.personale){
+    (data.personale||[]).forEach(p=>{
+      const localImpresaId = impresaIdMap[p.impresaId];
+      if(!localImpresaId){ stats.personaleSaltato++; return; }
+      const dup = DB.personale.find(x=>x.impresaId===localImpresaId
+        && (x.nome||'').trim().toLowerCase()===(p.nome||'').trim().toLowerCase()
+        && (x.cognome||'').trim().toLowerCase()===(p.cognome||'').trim().toLowerCase());
+      if(dup){ stats.personaleEsistente++; }
+      else{ DB.personale.push({...p, id:uid(), impresaId:localImpresaId}); stats.personaleNuovo++; }
+    });
+  }
+
+  // Libreria osservanze: una frase è "la stessa" se ha la stessa categoria e lo stesso testo (a meno di spazi/maiuscole)
+  if(sel.frasi){
+    (data.frasi||[]).forEach(f=>{
+      const dup = DB.frasi.find(x=>x.categoria===f.categoria && (x.testo||'').trim().toLowerCase()===(f.testo||'').trim().toLowerCase());
+      if(dup){ stats.frasiEsistenti++; }
+      else{ DB.frasi.push({...f, id:uid()}); stats.frasiNuove++; }
+    });
+  }
+
+  // Fasi di lavoro: categorie abbinate per nome (case-insensitive); le voci di una categoria già
+  // esistente vengono aggiunte a quelle già presenti (senza duplicati), mai sostituite.
+  if(sel.fasiLavoro){
+    (data.fasiLavoro||[]).forEach(cat=>{
+      const nomeCat = (cat.categoria||'').trim();
+      let localCat = DB.fasiLavoro.find(x=>(x.categoria||'').trim().toLowerCase()===nomeCat.toLowerCase());
+      if(!localCat){ localCat = {categoria:nomeCat, voci:[]}; DB.fasiLavoro.push(localCat); stats.fasiLavoroCategorieNuove++; }
+      (cat.voci||[]).forEach(voce=>{
+        const v = (voce||'').trim(); if(!v) return;
+        const dup = localCat.voci.some(x=>(x||'').trim().toLowerCase()===v.toLowerCase());
+        if(dup){ stats.fasiLavoroVociEsistenti++; }
+        else{ localCat.voci.push(v); stats.fasiLavoroVociNuove++; }
+      });
+    });
+  }
+
+  // Destinatari: dedup per nome (come cantieri/imprese)
+  if(sel.destinatari){
+    (data.destinatari||[]).forEach(d=>{
+      const existing = DB.destinatari.find(x=>(x.nome||'').trim().toLowerCase()===(d.nome||'').trim().toLowerCase());
+      if(existing){ stats.destinatariEsistenti++; }
+      else{ DB.destinatari.push({...d, id:uid()}); stats.destinatariNuovi++; }
+    });
+  }
 
   return stats;
 }
 function viewTrasferimentoDati(){
   const stato = IMPORT_DATI_ARCHIVIO;
   const preview = stato && stato.parsed;
-  return topWrap('Esporta / Importa dati', '', `
-    <section class="block">
-      <h3>Esporta</h3>
-      <p style="font-size:13px;margin:0 0 8px;line-height:1.5;">Scarica un file con tutti i Cantieri, le Imprese e il Personale archiviati in quest'app, per portarli su un altro dispositivo o un'altra installazione dell'app.</p>
-      <div class="hint" style="margin-bottom:10px;">${DB.cantieri.length} cantieri · ${DB.imprese.length} imprese · ${DB.personale.length} persone</div>
-      <button class="btn" data-export-dati="1">⬇️ Esporta cantieri, imprese e personale</button>
-    </section>
-    <section class="block">
-      <h3>Importa</h3>
-      ${!preview ? `
-      <p style="font-size:13px;margin:0 0 10px;line-height:1.5;">Carica un file esportato da un'altra installazione. I cantieri e le imprese già presenti (stesso nome) non vengono duplicati; il personale già presente per la stessa impresa nemmeno.</p>
+
+  const fasiLavoroVociCount = (DB.fasiLavoro||[]).reduce((n,c)=>n+(c.voci||[]).length, 0);
+  const exportSezioniHtml = `
+    <div class="hint" style="margin:2px 0 10px;">Scegli cosa includere nel file:</div>
+    <label class="phrase-item"><input type="checkbox" id="exp-sel-cantieri" checked><div class="txt">Cantieri (${DB.cantieri.length})</div></label>
+    <label class="phrase-item"><input type="checkbox" id="exp-sel-imprese" checked><div class="txt">Imprese (${DB.imprese.length})</div></label>
+    <label class="phrase-item"><input type="checkbox" id="exp-sel-personale" checked><div class="txt">Personale (${DB.personale.length})</div></label>
+    <label class="phrase-item"><input type="checkbox" id="exp-sel-frasi" checked><div class="txt">Libreria osservanze (${DB.frasi.length} frasi)</div></label>
+    <label class="phrase-item"><input type="checkbox" id="exp-sel-fasiLavoro" checked><div class="txt">Fasi di lavoro (${(DB.fasiLavoro||[]).length} categorie, ${fasiLavoroVociCount} voci)</div></label>
+    <label class="phrase-item"><input type="checkbox" id="exp-sel-destinatari" checked><div class="txt">Destinatari (${DB.destinatari.length})</div></label>
+    <div class="hint" style="margin-top:8px;">Se esporti solo il Personale, le Imprese vengono comunque incluse nel file (solo come riferimento) per mantenere i collegamenti corretti in fase di importazione.</div>
+  `;
+
+  let importaBody;
+  if(!preview){
+    importaBody = `
+      <p style="font-size:13px;margin:0 0 10px;line-height:1.5;">Carica un file esportato da un'altra installazione (anche parziale, con solo alcune sezioni). Potrai scegliere quali sezioni importare. I dati vengono sempre aggiunti a quelli già presenti, senza mai cancellare o sovrascrivere nulla: i record già presenti (stesso nome, o stesso testo per le frasi) non vengono duplicati.</p>
       <label>Carica il file .json</label>
       <input type="file" id="import-dati-file" accept=".json,application/json">
       <div class="hint" style="margin:8px 0;">oppure incolla qui il contenuto del file</div>
@@ -1249,13 +1368,46 @@ function viewTrasferimentoDati(){
         <button class="btn secondary" data-import-dati-preview="1">Analizza file</button>
       </div>
       ${stato && stato.error ? `<div class="errlist"><div class="t">${esc(stato.error)}</div></div>` : ''}
-      ` : `
-      <div class="hint" style="margin-bottom:10px;line-height:1.5;">Trovati nel file: <b>${(preview.cantieri||[]).length}</b> cantieri, <b>${(preview.imprese||[]).length}</b> imprese, <b>${(preview.personale||[]).length}</b> persone. I duplicati (stesso nome) verranno riconosciuti e non ripetuti.</div>
+    `;
+  } else {
+    const sezioniDichiarate = preview.sezioni || null;
+    const haCantieri = Array.isArray(preview.cantieri);
+    const haImprese = Array.isArray(preview.imprese);
+    const haPersonale = Array.isArray(preview.personale);
+    const haFrasi = Array.isArray(preview.frasi);
+    const haFasiLavoro = Array.isArray(preview.fasiLavoro);
+    const haDestinatari = Array.isArray(preview.destinatari);
+    const defaultChecked = (chiave, presente) => presente && (sezioniDichiarate ? !!sezioniDichiarate[chiave] : true);
+    const checkboxRow = (id, chiave, label, count, presente) => !presente ? '' : `
+      <label class="phrase-item"><input type="checkbox" id="${id}" ${defaultChecked(chiave, presente)?'checked':''}><div class="txt">${label} (${count} nel file)</div></label>`;
+    const fasiLavoroVociCountFile = (preview.fasiLavoro||[]).reduce((n,c)=>n+(c.voci||[]).length, 0);
+    importaBody = `
+      <div class="hint" style="margin-bottom:10px;line-height:1.5;">Trovati nel file: <b>${(preview.cantieri||[]).length}</b> cantieri, <b>${(preview.imprese||[]).length}</b> imprese, <b>${(preview.personale||[]).length}</b> persone, <b>${(preview.frasi||[]).length}</b> frasi della libreria osservanze, <b>${(preview.fasiLavoro||[]).length}</b> categorie di fasi di lavoro, <b>${(preview.destinatari||[]).length}</b> destinatari. Scegli quali sezioni importare — i duplicati verranno riconosciuti e non ripetuti, nulla di esistente viene mai cancellato:</div>
+      ${checkboxRow('imp-sel-cantieri','cantieri','Cantieri', (preview.cantieri||[]).length, haCantieri)}
+      ${checkboxRow('imp-sel-imprese','imprese','Imprese', (preview.imprese||[]).length, haImprese)}
+      ${checkboxRow('imp-sel-personale','personale','Personale', (preview.personale||[]).length, haPersonale)}
+      ${checkboxRow('imp-sel-frasi','frasi','Libreria osservanze', (preview.frasi||[]).length, haFrasi)}
+      ${checkboxRow('imp-sel-fasiLavoro','fasiLavoro','Fasi di lavoro', `${(preview.fasiLavoro||[]).length} categorie, ${fasiLavoroVociCountFile} voci`, haFasiLavoro)}
+      ${checkboxRow('imp-sel-destinatari','destinatari','Destinatari', (preview.destinatari||[]).length, haDestinatari)}
+      ${!haCantieri&&!haImprese&&!haPersonale&&!haFrasi&&!haFasiLavoro&&!haDestinatari ? `<div class="hint">Il file non contiene sezioni riconosciute.</div>` : ''}
+      ${haPersonale ? `<div class="hint" style="margin-top:8px;">Se importi il Personale senza le Imprese, verranno aggiunte solo le persone la cui impresa esiste già su questo dispositivo (stesso nome); le altre verranno ignorate.</div>` : ''}
       <div class="btn-row">
         <button class="btn secondary" data-import-dati-back="1">‹ Annulla</button>
         <button class="btn" data-import-dati-commit="1">Importa</button>
       </div>
-      `}
+    `;
+  }
+
+  return topWrap('Esporta / Importa dati', '', `
+    <section class="block">
+      <h3>Esporta</h3>
+      <p style="font-size:13px;margin:0 0 8px;line-height:1.5;">Scarica un file con i dati archiviati in quest'app (Cantieri, Imprese, Personale, Libreria osservanze, Fasi di lavoro, Destinatari), per portarli su un altro dispositivo o un'altra installazione dell'app.</p>
+      ${exportSezioniHtml}
+      <button class="btn" data-export-dati="1" style="margin-top:10px;">⬇️ Esporta i dati selezionati</button>
+    </section>
+    <section class="block">
+      <h3>Importa</h3>
+      ${importaBody}
     </section>
   `);
 }
@@ -1264,11 +1416,16 @@ function viewTrasferimentoDati(){
 function viewArchivio(){
   ROUTE.filters = ROUTE.filters || {cantiere:'', numero:'', data:''};
   const f = ROUTE.filters;
-  let list = DB.verbaliIndex.slice();
-  if(f.cantiere) list = list.filter(v=>v.cantiereId===f.cantiere);
-  if(f.numero) list = list.filter(v=>String(v.numero).includes(f.numero));
-  if(f.data) list = list.filter(v=>v.data===f.data);
+  const matchFiltri = v => (!f.cantiere || v.cantiereId===f.cantiere)
+    && (!f.numero || String(v.numero).includes(f.numero))
+    && (!f.data || v.data===f.data);
+
+  let list = DB.verbaliIndex.filter(matchFiltri);
   list.sort((a,b)=> (b.data||'').localeCompare(a.data||'') || (b.createdAt||0)-(a.createdAt||0));
+
+  const idLocali = new Set(DB.verbaliIndex.map(v=>v.id));
+  let remoti = CLOUD_VERBALI.filter(v=>!idLocali.has(v.id)).filter(matchFiltri);
+  remoti.sort((a,b)=> (b.data||'').localeCompare(a.data||'') || (b.createdAt||0)-(a.createdAt||0));
 
   const cantiereOpts = `<option value="">Tutti i cantieri</option>` +
     DB.cantieri.map(c=>`<option value="${c.id}" ${f.cantiere===c.id?'selected':''}>${esc(c.nome)}</option>`).join('');
@@ -1277,7 +1434,7 @@ function viewArchivio(){
     <div class="item-row">
       <div class="main">
         <div class="t">Verbale n° ${v.numero}/${v.anno} — ${esc(v.cantiereNome||'')}</div>
-        <div class="s">${fmtDate(v.data)} · ${v.stato==='finale'?'✅ finalizzato':'📝 bozza'}</div>
+        <div class="s">${fmtDate(v.data)} · ${v.stato==='finale'?'✅ finalizzato':'📝 bozza'}${v.cse?` · compilato da ${esc(v.cse)}`:''}</div>
       </div>
       <div class="actions">
         <button class="iconbtn" data-open-verbale="${v.id}">Apri</button>
@@ -1285,6 +1442,21 @@ function viewArchivio(){
         <button class="iconbtn" data-del-verbale="${v.id}">🗑</button>
       </div>
     </div>`).join('') || emptyState('📂','Nessun verbale trovato','Prova a modificare i filtri o crea un nuovo verbale.');
+
+  const remoteRows = remoti.map(v=>`
+    <div class="item-row">
+      <div class="main">
+        <div class="t">Verbale n° ${v.numero}/${v.anno} — ${esc(v.cantiereNome||'')}</div>
+        <div class="s">${fmtDate(v.data)}${v.cse?` · compilato da ${esc(v.cse)}`:''} · 🔗 su un altro dispositivo</div>
+      </div>
+    </div>`).join('');
+
+  const remoteSectionHtml = CLOUD_DB ? `
+    <section class="block">
+      <h3>Verbali di altri dispositivi</h3>
+      <div class="hint" style="margin-bottom:8px;">Elenco condiviso in tempo reale con tutta l'azienda: si vede chi ha compilato cosa, ma il contenuto completo (foto comprese) resta disponibile solo sul dispositivo che ha creato il verbale.</div>
+      ${remoteRows || `<div class="hint">Nessun verbale trovato su altri dispositivi.</div>`}
+    </section>` : '';
 
   return topWrap('Archivio verbali','', `
     <section class="block">
@@ -1296,6 +1468,7 @@ function viewArchivio(){
       </div>
     </section>
     <section class="block" style="padding:4px 14px;">${rows}</section>
+    ${remoteSectionHtml}
   `);
 }
 
@@ -2527,9 +2700,19 @@ function attachHandlers(){
     go({name:'personale'});
   });
 
-  // trasferimento dati (esporta/importa cantieri, imprese, personale)
+  // trasferimento dati (esporta/importa cantieri, imprese, personale) — sempre additivo, mai sovrascrive
   const exportDatiBtn = app.querySelector('[data-export-dati]');
-  if(exportDatiBtn) exportDatiBtn.addEventListener('click', esportaDatiArchivio);
+  if(exportDatiBtn) exportDatiBtn.addEventListener('click', ()=>{
+    const sel = {
+      cantieri: !!document.getElementById('exp-sel-cantieri')?.checked,
+      imprese: !!document.getElementById('exp-sel-imprese')?.checked,
+      personale: !!document.getElementById('exp-sel-personale')?.checked,
+      frasi: !!document.getElementById('exp-sel-frasi')?.checked,
+      fasiLavoro: !!document.getElementById('exp-sel-fasiLavoro')?.checked,
+      destinatari: !!document.getElementById('exp-sel-destinatari')?.checked,
+    };
+    esportaDatiArchivio(sel);
+  });
   const importDatiFile = document.getElementById('import-dati-file');
   if(importDatiFile) importDatiFile.addEventListener('change', ()=>{
     const file = importDatiFile.files[0]; if(!file) return;
@@ -2544,8 +2727,8 @@ function attachHandlers(){
     let parsed = null, error = null;
     try{
       parsed = JSON.parse(raw);
-      if(!parsed || typeof parsed!=='object' || (!parsed.cantieri && !parsed.imprese && !parsed.personale)){
-        parsed = null; error = 'File non riconosciuto: non contiene cantieri, imprese o personale.';
+      if(!parsed || typeof parsed!=='object' || (!parsed.cantieri && !parsed.imprese && !parsed.personale && !parsed.frasi && !parsed.fasiLavoro && !parsed.destinatari)){
+        parsed = null; error = 'File non riconosciuto: non contiene nessuna delle sezioni previste.';
       }
     }catch(e){ error = 'File non valido: non è un JSON leggibile.'; }
     IMPORT_DATI_ARCHIVIO = {raw, parsed, error};
@@ -2555,12 +2738,27 @@ function attachHandlers(){
   if(importDatiBackBtn) importDatiBackBtn.addEventListener('click', ()=>{ IMPORT_DATI_ARCHIVIO=null; render(); });
   const importDatiCommitBtn = app.querySelector('[data-import-dati-commit]');
   if(importDatiCommitBtn) importDatiCommitBtn.addEventListener('click', async ()=>{
-    const stats = importDatiArchivio(IMPORT_DATI_ARCHIVIO.parsed);
-    await sset(KEYS.cantieri, DB.cantieri);
-    await sset(KEYS.imprese, DB.imprese);
-    await sset(KEYS.personale, DB.personale);
+    const sel = {
+      cantieri: !!document.getElementById('imp-sel-cantieri')?.checked,
+      imprese: !!document.getElementById('imp-sel-imprese')?.checked,
+      personale: !!document.getElementById('imp-sel-personale')?.checked,
+      frasi: !!document.getElementById('imp-sel-frasi')?.checked,
+      fasiLavoro: !!document.getElementById('imp-sel-fasiLavoro')?.checked,
+      destinatari: !!document.getElementById('imp-sel-destinatari')?.checked,
+    };
+    if(!sel.cantieri && !sel.imprese && !sel.personale && !sel.frasi && !sel.fasiLavoro && !sel.destinatari){ toast('Seleziona almeno una sezione da importare.'); return; }
+    const stats = importDatiArchivio(IMPORT_DATI_ARCHIVIO.parsed, sel);
+    if(sel.cantieri) await sset(KEYS.cantieri, DB.cantieri);
+    if(sel.imprese) await sset(KEYS.imprese, DB.imprese);
+    if(sel.personale) await sset(KEYS.personale, DB.personale);
+    if(sel.frasi) await sset(KEYS.frasi, DB.frasi);
+    if(sel.fasiLavoro) await sset(KEYS.fasiLavoro, DB.fasiLavoro);
+    if(sel.destinatari) await sset(KEYS.destinatari, DB.destinatari);
     IMPORT_DATI_ARCHIVIO = null;
-    toast(`Importati: ${stats.cantieriNuovi} cantieri, ${stats.impreseNuove} imprese, ${stats.personaleNuovo} persone (già presenti, non duplicati: ${stats.cantieriEsistenti + stats.impreseEsistenti + stats.personaleEsistente})`);
+    const nuovi = stats.cantieriNuovi + stats.impreseNuove + stats.personaleNuovo + stats.frasiNuove + stats.fasiLavoroVociNuove + stats.fasiLavoroCategorieNuove + stats.destinatariNuovi;
+    const esistenti = stats.cantieriEsistenti + stats.impreseEsistenti + stats.personaleEsistente + stats.frasiEsistenti + stats.fasiLavoroVociEsistenti + stats.destinatariEsistenti;
+    const skippedMsg = stats.personaleSaltato ? ` — ${stats.personaleSaltato} persone ignorate (impresa non trovata)` : '';
+    toast(`Importati ${nuovi} elementi nuovi (già presenti, non duplicati: ${esistenti})${skippedMsg}`);
     go({name:'home'});
   });
 
