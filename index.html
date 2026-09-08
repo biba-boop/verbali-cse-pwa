@@ -50,7 +50,7 @@
     display:flex;align-items:center;gap:8px;}
   .brand-spacer{flex:0 0 112px;}
   .brand-logo-wrap{flex:1;min-width:0;display:flex;justify-content:center;}
-  .brand-header img{height:53px;width:auto;display:block;}
+  .brand-header img{height:49.3px;width:auto;display:block;}
   .profile-badge{flex:0 0 112px;width:112px;overflow:hidden;display:flex;visibility:hidden;
     align-items:center;gap:5px;background:var(--bg);
     border:1px solid var(--line);border-radius:999px;padding:3px 11px 3px 3px;font-size:10.5px;
@@ -255,7 +255,7 @@
   .doc-cols2-plain{display:flex;flex-wrap:wrap;gap:6px 24px;font-size:12.5px;margin-bottom:10px;}
   .doc-photogrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:8px;}
   .doc-photogrid .p img{width:100%;height:90px;object-fit:cover;border:1px solid var(--line);border-radius:3px;}
-  .doc-photogrid .p .c{font-size:9.5px;color:var(--muted);margin-top:3px;line-height:1.3;}
+  .doc-photogrid .p .c{font-size:11px;color:var(--muted);margin-top:3px;line-height:1.3;}
   /* fasi di lavoro / osservanze / adeguamenti photos: dimensione fissa 4cm x 5,33cm, 3 per riga — almeno 6 foto (2 righe) ci stanno */
   .doc-photogrid.fasi-fixed{grid-template-columns:repeat(3, 5.33cm);gap:6px;}
   .doc-photogrid.fasi-fixed .p img{height:4cm;}
@@ -289,6 +289,7 @@
 
   /* checkbox-style lists (imprese, osservanze target, destinatari, invio) */
   .doc-chk-list{margin:4px 0 10px;}
+  .doc-chk-list.boxed{border:1px solid #000;padding:8px 10px 4px;}
   .doc-chk-row{display:flex;gap:6px;align-items:baseline;font-size:12px;padding:2px 0;}
   /* real Unicode ballot-box glyphs (☒ U+2612 / ☐ U+2610), matching the Wingdings-style
      checkbox glyphs used in the source docx, instead of a custom CSS box */
@@ -433,6 +434,7 @@ function esc(s){ return (s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;',
 let DB = { cantieri:[], imprese:[], personale:[], frasi:[], destinatari:[], settings:{}, verbaliIndex:[], fasiLavoro:[] };
 let CURRENT_VERBALE = null;
 let IMPORT_PERSONALE = null; // {impresaId, raw, rows:null|Array<{nome,cognome,mansione}>}
+let IMPORT_DATI_ARCHIVIO = null; // {raw, parsed:null|object, error:null|string} — trasferimento cantieri/imprese/personale tra dispositivi
 let ROUTE = {name:'accesso'};
 let toastTimer=null;
 
@@ -485,6 +487,38 @@ const CAT_LABELS = {
 };
 const CAT_ORDER = ['standard','daAggiungere','noteSpecifiche','prescrizioni'];
 const IMPRESA_RUOLI = ['Impresa affidataria','Impresa esecutrice','Impresa in subappalto','Lavoratore autonomo in subappalto'];
+// un'impresa coinvolta può ricoprire più ruoli contemporaneamente (es. affidataria ed esecutrice);
+// i verbali salvati prima di questa modifica hanno un singolo campo `ruolo` (stringa) invece di `ruoli` (array).
+function ruoliOf(ic){ return (ic.ruoli && ic.ruoli.length) ? ic.ruoli : (ic.ruolo ? [ic.ruolo] : []); }
+
+// nome provincia (per esteso, come spesso digitato) -> sigla ufficiale a 2 lettere, per riportare
+// sempre la provincia abbreviata in copertina/documento anche se l'utente scrive il nome per esteso.
+const PROVINCE_SIGLE = {
+  'agrigento':'AG','alessandria':'AL','ancona':'AN','aosta':'AO','arezzo':'AR','ascoli piceno':'AP','asti':'AT','avellino':'AV',
+  'bari':'BA','barletta-andria-trani':'BT','belluno':'BL','benevento':'BN','bergamo':'BG','biella':'BI','bologna':'BO','bolzano':'BZ',
+  'brescia':'BS','brindisi':'BR','cagliari':'CA','caltanissetta':'CL','campobasso':'CB','caserta':'CE','catania':'CT','catanzaro':'CZ',
+  'chieti':'CH','como':'CO','cosenza':'CS','cremona':'CR','crotone':'KR','cuneo':'CN','enna':'EN','fermo':'FM','ferrara':'FE',
+  'firenze':'FI','foggia':'FG','forli-cesena':'FC','frosinone':'FR','genova':'GE','gorizia':'GO','grosseto':'GR',
+  'imperia':'IM','isernia':'IS','la spezia':'SP','laquila':'AQ','latina':'LT','lecce':'LE','lecco':'LC','livorno':'LI',
+  'lodi':'LO','lucca':'LU','macerata':'MC','mantova':'MN','massa-carrara':'MS','massa carrara':'MS','matera':'MT','messina':'ME',
+  'milano':'MI','modena':'MO','monza e della brianza':'MB','monza e brianza':'MB','monza-brianza':'MB','napoli':'NA','novara':'NO',
+  'nuoro':'NU','oristano':'OR','padova':'PD','palermo':'PA','parma':'PR','pavia':'PV','perugia':'PG','pesaro e urbino':'PU',
+  'pescara':'PE','piacenza':'PC','pisa':'PI','pistoia':'PT','pordenone':'PN','potenza':'PZ','prato':'PO','ragusa':'RG','ravenna':'RA',
+  'reggio calabria':'RC','reggio emilia':'RE','rieti':'RI','rimini':'RN','roma':'RM','rovigo':'RO','salerno':'SA','sassari':'SS',
+  'savona':'SV','siena':'SI','siracusa':'SR','sondrio':'SO','sud sardegna':'SU','taranto':'TA','teramo':'TE','terni':'TR','torino':'TO',
+  'trapani':'TP','trento':'TN','treviso':'TV','trieste':'TS','udine':'UD','varese':'VA','venezia':'VE','verbano-cusio-ossola':'VB',
+  'vercelli':'VC','verona':'VR','vibo valentia':'VV','vicenza':'VI','viterbo':'VT'
+};
+// converte in automatico un nome provincia (per esteso, con o senza accenti/apostrofi) nella sua sigla;
+// se già una sigla di 2 lettere la restituisce uppercase; se non riconosciuta, fallback sulle prime 2 lettere.
+function provinciaSigla(raw){
+  const t = (raw||'').trim();
+  if(!t) return '';
+  if(t.length<=2) return t.toUpperCase();
+  const norm = t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z ]/g,'');
+  if(PROVINCE_SIGLE[norm]) return PROVINCE_SIGLE[norm];
+  return t.slice(0,2).toUpperCase();
+}
 
 /* Fasi di lavoro / cantieristica, suddivise per categoria (da FASI_DI_LAVORO.docx).
    Usate per il menu a tendina categoria → fase sulle foto di "Fasi di lavoro in atto".
@@ -568,7 +602,7 @@ function chkInline(on, label){
    company is checked (used on the VISITA page to list all companies involved). */
 function impresaFixedRows(imprese, selectedImpresaId){
   return IMPRESA_RUOLI.map(ruolo=>{
-    const inRuolo = imprese.filter(ic=>ic.ruolo===ruolo);
+    const inRuolo = imprese.filter(ic=>ruoliOf(ic).includes(ruolo));
     const on = selectedImpresaId!=null
       ? inRuolo.some(ic=>ic.impresaId===selectedImpresaId)
       : inRuolo.length>0;
@@ -607,6 +641,11 @@ async function loadVerbale(id){
   v.presentiPersonale = v.presentiPersonale || [];
   v.altriPresenti = v.altriPresenti || v.presenti || [];
   v.assistenteCSE = v.assistenteCSE || '';
+  v.comune = v.comune || '';
+  v.provincia = v.provincia || '';
+  v.tipologiaLavoro = v.tipologiaLavoro || '';
+  v.provincia = provinciaSigla(v.provincia);
+  (v.impreseCoinvolte||[]).forEach(i=>{ if(!i.ruoli || !i.ruoli.length) i.ruoli = i.ruolo ? [i.ruolo] : [IMPRESA_RUOLI[0]]; });
   v.firmaExtra = v.firmaExtra || {label:'Altra firma', nome:''};
   if(v.firmaExtra.img===undefined) v.firmaExtra.img = null;
   if(v.firmaCSEImg===undefined) v.firmaCSEImg = null;
@@ -639,6 +678,8 @@ function blankVerbale(cantiere){
   return {
     id: uid(), stato:'bozza',
     cantiereId: cantiere.id, cantiereNome: cantiere.nome, sito: cantiere.sito||'',
+    comune: cantiere.comune||'', provincia: provinciaSigla(cantiere.provincia),
+    tipologiaLavoro: cantiere.tipologiaLavoro || '',
     committente: cantiere.committente||'', responsabileLavori: cantiere.responsabileLavori||'',
     numero: n.numero, anno: n.anno,
     data: todayISO(),
@@ -681,6 +722,7 @@ function render(){
     case 'profilo': html=viewProfilo(); break;
     case 'destinatari': html=viewDestinatari(); break;
     case 'destinatario-edit': html=viewDestinatarioEdit(ROUTE.id); break;
+    case 'trasferimento-dati': html=viewTrasferimentoDati(); break;
     case 'archivio': html=viewArchivio(); break;
     case 'wizard': html=viewWizard(ROUTE.step); break;
     case 'anteprima': html=viewAnteprima(); break;
@@ -783,6 +825,9 @@ function viewHome(){
       <button class="menu-btn" data-go="destinatari">
         <div class="ico">✉️</div><div class="lbl">Destinatari</div><div class="cnt">${DB.destinatari.length} contatti</div>
       </button>
+      <button class="menu-btn wide" data-go="trasferimento-dati">
+        <div class="ico">🔄</div><div class="lbl">Esporta / Importa dati</div><div class="cnt">Trasferisci cantieri, imprese e personale su un altro dispositivo</div>
+      </button>
     </div>
   </div>`;
 }
@@ -803,12 +848,15 @@ function viewCantieri(){
   `);
 }
 function viewCantiereEdit(id){
-  const c = id? DB.cantieri.find(x=>x.id===id) : {id:uid(), nome:'',sito:'',committente:'',responsabileLavori:'',comune:'',provincia:''};
+  const c = id? DB.cantieri.find(x=>x.id===id) : {id:uid(), nome:'',sito:'',committente:'',responsabileLavori:'',comune:'',provincia:'',tipologiaLavoro:''};
   const isNew = !id;
   return topWrap(isNew?'Nuovo cantiere':'Modifica cantiere','', `
     <section class="block">
       <label>Nome cantiere *</label>
       <input type="text" id="f-nome" value="${esc(c.nome)}" placeholder="Es. Saint Marcel (AO)">
+      <label>Tipo di lavorazione (intestazione documento)</label>
+      <input type="text" id="f-cantiere-tipologia" value="${esc(c.tipologiaLavoro||'')}" placeholder="Es. RETE, ALLACCIO, IMPIANTO…">
+      <div class="hint">Da compilare per questo cantiere: comparirà in copertina al posto del cantiere/città. Nessun valore precompilato.</div>
       <label>Sito in (località / tratto)</label>
       <input type="text" id="f-sito" value="${esc(c.sito)}" placeholder="Es. Loc. Fleurie – A5">
       <label>Committente</label>
@@ -818,7 +866,8 @@ function viewCantiereEdit(id){
       <label>Comune</label>
       <input type="text" id="f-comune" value="${esc(c.comune||'')}">
       <label>Provincia</label>
-      <input type="text" id="f-provincia" value="${esc(c.provincia||'')}">
+      <input type="text" id="f-provincia" value="${esc(c.provincia||'')}" placeholder="Es. Novara oppure NO">
+      <div class="hint">Viene salvata in automatico come sigla (es. NO), anche se scrivi il nome per esteso.</div>
     </section>
     <div class="btn-row">
       <button class="btn secondary" data-go="cantieri">Annulla</button>
@@ -1115,6 +1164,102 @@ function viewDestinatarioEdit(id){
   `);
 }
 
+/* ======================= TRASFERIMENTO DATI (esporta/importa cantieri, imprese, personale) =======================
+   Serve a copiare gli archivi Cantieri/Imprese/Personale su un altro dispositivo (o un'altra installazione
+   dell'app), dato che i dati vivono solo in locale sul dispositivo corrente. L'export è un file .json;
+   l'import fa un merge "intelligente": le imprese/i cantieri già presenti (stesso nome) non vengono
+   duplicati, e i riferimenti impresaId del personale importato vengono ricollegati correttamente
+   all'impresa locale corrispondente (nuova o già esistente). */
+function buildDatiArchivioExport(){
+  return {
+    tipo: 'gdg-verbali-cse-export',
+    versione: 1,
+    esportatoIl: new Date().toISOString(),
+    cantieri: DB.cantieri,
+    imprese: DB.imprese,
+    personale: DB.personale,
+  };
+}
+async function esportaDatiArchivio(){
+  try{
+    const json = JSON.stringify(buildDatiArchivioExport(), null, 2);
+    const blob = new Blob([json], {type:'application/json'});
+    const filename = `gdg-dati-cantieri-imprese-personale-${todayISO()}.json`;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 2000);
+    toast('Dati esportati');
+  }catch(e){ console.error(e); toast('Errore nell\'esportazione dei dati.'); }
+}
+// unisce i dati importati in DB.cantieri/imprese/personale evitando duplicati (confronto per nome) e
+// ricollegando correttamente il personale importato all'impresa giusta (nuova o già esistente in locale)
+function importDatiArchivio(data){
+  const stats = {cantieriNuovi:0, cantieriEsistenti:0, impreseNuove:0, impreseEsistenti:0, personaleNuovo:0, personaleEsistente:0};
+  const impresaIdMap = {};
+
+  (data.imprese||[]).forEach(imp=>{
+    const existing = DB.imprese.find(x=>(x.nome||'').trim().toLowerCase()===(imp.nome||'').trim().toLowerCase());
+    if(existing){ impresaIdMap[imp.id] = existing.id; stats.impreseEsistenti++; }
+    else{
+      const newId = uid();
+      DB.imprese.push({...imp, id:newId});
+      impresaIdMap[imp.id] = newId;
+      stats.impreseNuove++;
+    }
+  });
+
+  (data.cantieri||[]).forEach(c=>{
+    const existing = DB.cantieri.find(x=>(x.nome||'').trim().toLowerCase()===(c.nome||'').trim().toLowerCase());
+    if(existing){ stats.cantieriEsistenti++; }
+    else{ DB.cantieri.push({...c, id:uid()}); stats.cantieriNuovi++; }
+  });
+
+  (data.personale||[]).forEach(p=>{
+    const localImpresaId = impresaIdMap[p.impresaId] || p.impresaId;
+    const dup = DB.personale.find(x=>x.impresaId===localImpresaId
+      && (x.nome||'').trim().toLowerCase()===(p.nome||'').trim().toLowerCase()
+      && (x.cognome||'').trim().toLowerCase()===(p.cognome||'').trim().toLowerCase());
+    if(dup){ stats.personaleEsistente++; }
+    else{ DB.personale.push({...p, id:uid(), impresaId:localImpresaId}); stats.personaleNuovo++; }
+  });
+
+  return stats;
+}
+function viewTrasferimentoDati(){
+  const stato = IMPORT_DATI_ARCHIVIO;
+  const preview = stato && stato.parsed;
+  return topWrap('Esporta / Importa dati', '', `
+    <section class="block">
+      <h3>Esporta</h3>
+      <p style="font-size:13px;margin:0 0 8px;line-height:1.5;">Scarica un file con tutti i Cantieri, le Imprese e il Personale archiviati in quest'app, per portarli su un altro dispositivo o un'altra installazione dell'app.</p>
+      <div class="hint" style="margin-bottom:10px;">${DB.cantieri.length} cantieri · ${DB.imprese.length} imprese · ${DB.personale.length} persone</div>
+      <button class="btn" data-export-dati="1">⬇️ Esporta cantieri, imprese e personale</button>
+    </section>
+    <section class="block">
+      <h3>Importa</h3>
+      ${!preview ? `
+      <p style="font-size:13px;margin:0 0 10px;line-height:1.5;">Carica un file esportato da un'altra installazione. I cantieri e le imprese già presenti (stesso nome) non vengono duplicati; il personale già presente per la stessa impresa nemmeno.</p>
+      <label>Carica il file .json</label>
+      <input type="file" id="import-dati-file" accept=".json,application/json">
+      <div class="hint" style="margin:8px 0;">oppure incolla qui il contenuto del file</div>
+      <textarea id="import-dati-raw" rows="4" placeholder="{ &quot;cantieri&quot;: [...], &quot;imprese&quot;: [...], &quot;personale&quot;: [...] }"></textarea>
+      <div class="btn-row">
+        <button class="btn secondary" data-import-dati-preview="1">Analizza file</button>
+      </div>
+      ${stato && stato.error ? `<div class="errlist"><div class="t">${esc(stato.error)}</div></div>` : ''}
+      ` : `
+      <div class="hint" style="margin-bottom:10px;line-height:1.5;">Trovati nel file: <b>${(preview.cantieri||[]).length}</b> cantieri, <b>${(preview.imprese||[]).length}</b> imprese, <b>${(preview.personale||[]).length}</b> persone. I duplicati (stesso nome) verranno riconosciuti e non ripetuti.</div>
+      <div class="btn-row">
+        <button class="btn secondary" data-import-dati-back="1">‹ Annulla</button>
+        <button class="btn" data-import-dati-commit="1">Importa</button>
+      </div>
+      `}
+    </section>
+  `);
+}
+
 /* ======================= ARCHIVIO VERBALI ======================= */
 function viewArchivio(){
   ROUTE.filters = ROUTE.filters || {cantiere:'', numero:'', data:''};
@@ -1247,8 +1392,9 @@ function wizImprese(v){
       <div class="head"><div class="name">${esc(ic.nome)}</div>
         <button class="iconbtn" data-rm-impresa-verbale="${idx}">Rimuovi</button></div>
       <div class="role-select">
-        ${IMPRESA_RUOLI.map(r=>`<span class="chip ${ic.ruolo===r?'on':''}" data-set-ruolo-impresa="${idx}" data-ruolo="${r}">${r}</span>`).join('')}
+        ${IMPRESA_RUOLI.map(r=>`<span class="chip ${ruoliOf(ic).includes(r)?'on':''}" data-set-ruolo-impresa="${idx}" data-ruolo="${r}">${r}</span>`).join('')}
       </div>
+      <div class="hint" style="margin-top:4px;">Tocca per selezionare uno o più ruoli.</div>
     </div>`).join('') || `<div class="hint">Nessuna impresa selezionata per questo verbale.</div>`;
   const addOpts = avail.map(i=>`<option value="${i.id}">${esc(i.nome)}</option>`).join('');
   return `
@@ -1366,7 +1512,7 @@ function wizOsservanze(v){
   </section>
   <section class="block">
     <h3>Foto cantieristica (per questa impresa)</h3>
-    <div class="hint" style="margin-bottom:8px;">Le foto vengono inserite nel documento prima del testo delle osservanze (dimensione 4×5,33cm).</div>
+    <div class="hint" style="margin-bottom:8px;">Le foto vengono inserite nel documento dopo il testo delle prescrizioni, in fondo all'ultima pagina di questa impresa (dimensione 4×5,33cm).</div>
     <div class="photo-grid">
       ${photos}
       <label class="add-photo-btn" for="oss-photo-input">📷<br>Aggiungi foto</label>
@@ -1374,13 +1520,21 @@ function wizOsservanze(v){
     <input type="file" id="oss-photo-input" accept="image/*" capture="environment" multiple style="display:none;">
   </section>
   <section class="block">
+    <h3>Note</h3>
+    <div class="hint" style="margin-bottom:8px;">Questa categoria ha una pagina dedicata nel documento, con titolo "NOTE".</div>
     ${catBlock('standard')}
-    ${catBlock('daAggiungere')}
-    ${catBlock('noteSpecifiche')}
     <label>Note libere aggiuntive</label>
     <textarea id="w-oss-note" data-for="${active}">${esc(oss.noteLibere)}</textarea>
   </section>
   <section class="block">
+    <h3>Osservanze</h3>
+    <div class="hint" style="margin-bottom:8px;">Queste due categorie hanno una pagina dedicata nel documento, con titolo "OSSERVANZE".</div>
+    ${catBlock('daAggiungere')}
+    ${catBlock('noteSpecifiche')}
+  </section>
+  <section class="block">
+    <h3>Prescrizioni all'impresa</h3>
+    <div class="hint" style="margin-bottom:8px;">Questa categoria ha una pagina dedicata nel documento, con titolo "PRESCRIZIONI: ${esc(impreseInVerbale.find(ic=>ic.impresaId===active)?.nome||'')}".</div>
     ${catBlock('prescrizioni')}
     <label>Prescrizioni libere aggiuntive</label>
     <textarea id="w-oss-prescr" data-for="${active}">${esc(oss.prescrizioniLibere)}</textarea>
@@ -1559,6 +1713,7 @@ function wizDestinatari(v){
 function validateVerbale(v){
   const errs=[];
   if(!v.cantiereNome) errs.push('Seleziona un cantiere.');
+  if(!(v.tipologiaLavoro||'').trim()) errs.push('Indica il tipo di lavorazione del cantiere (scheda Cantiere) — comparirà in copertina.');
   if(!v.data) errs.push('Inserisci la data della visita.');
   if(!v.numero) errs.push('Inserisci il numero del verbale.');
   if(v.impreseCoinvolte.length===0) errs.push('Aggiungi almeno un\'impresa coinvolta.');
@@ -1568,14 +1723,17 @@ function validateVerbale(v){
 function presentiPersonaleNomi(v){
   return v.presentiPersonale.map(pid=>{
     const p = DB.personale.find(x=>x.id===pid);
-    return p ? `${p.nome} ${p.cognome} — ${p.mansione||''}` : null;
+    if(!p) return null;
+    const impresa = (v.impreseCoinvolte||[]).find(i=>i.impresaId===p.impresaId);
+    const extra = [p.mansione||'', impresa?impresa.nome:''].filter(Boolean).join(' — ');
+    return extra ? `${p.nome} ${p.cognome} — ${extra}` : `${p.nome} ${p.cognome}`;
   }).filter(Boolean);
 }
 
 function viewAnteprima(){
   const v = CURRENT_VERBALE;
   const errs = validateVerbale(v);
-  const impreseList = v.impreseCoinvolte.map(i=>`${esc(i.nome)} (${i.ruolo})`).join(', ') || '—';
+  const impreseList = v.impreseCoinvolte.map(i=>`${esc(i.nome)} (${ruoliOf(i).join(', ')})`).join(', ') || '—';
   const presentiList = [...presentiPersonaleNomi(v), ...v.altriPresenti].join(', ') || '—';
   const destNomi = DB.destinatari.filter(d=>v.destinatariSelezionati.includes(d.id)).map(d=>d.nome).join(', ') || '—';
 
@@ -1658,6 +1816,19 @@ function totalHours(v){
   return `${h}h${m?': '+m+'m':''}`;
 }
 
+/* "Cantiere di" deve riportare Città (Prov), non la descrizione del lavoro salvata come nome cantiere;
+   se il cantiere archiviato non ha ancora comune/provincia compilati, si ricade sul vecchio comportamento
+   (nome cantiere) per non lasciare il campo vuoto sui verbali già creati. */
+function cantiereCittaProv(v){
+  const comune = (v.comune||'').trim(), provincia = provinciaSigla(v.provincia);
+  if(!comune) return v.cantiereNome||'';
+  return provincia ? `${comune} (${provincia})` : comune;
+}
+function cantiereCoverLabel(v){
+  const cittaProv = cantiereCittaProv(v);
+  const sito = (v.sito||'').trim();
+  return [cittaProv, sito].filter(Boolean).join(' - ');
+}
 function docFileBaseName(v){
   return `Verbale_n${v.numero}-${v.anno}_${(v.cantiereNome||'cantiere').replace(/[^a-z0-9]+/gi,'_')}`;
 }
@@ -1670,7 +1841,7 @@ function viewDocumento(){
   const v = CURRENT_VERBALE;
 
   let pageNo = 0;
-  const totalPages = v.osservanze.length + 4; // cover + visita + N osservanze + sospensione + firme/distribuzione
+  const totalPages = v.osservanze.length * 3 + 3; // cover + visita + N imprese × (NOTE + OSSERVANZE + PRESCRIZIONI) + (sospensione+firme/distribuzione insieme)
   const nextPage = () => ++pageNo;
 
   /* ---- page 1: cover ---- */
@@ -1683,7 +1854,7 @@ function viewDocumento(){
         <div class="l2">VERBALE VISITA IN CANTIERE DEL COORDINATORE PER L'ESECUZIONE DEI LAVORI</div>
         <div class="l3">Aggiornamento del ${esc(DOC_AGGIORNAMENTO)}</div>
       </div>
-      <div class="doc-cover-box">${esc(('RETE ' + (v.cantiereNome||'')).toUpperCase())}</div>
+      <div class="doc-cover-box">${esc([v.tipologiaLavoro, cantiereCoverLabel(v)].filter(Boolean).join(' ').toUpperCase())}</div>
     </div>
     ${docFooter(nextPage(), totalPages)}
   </div>`;
@@ -1714,7 +1885,7 @@ function viewDocumento(){
   </div>`;
 
   const presentiListHtml = [...presentiPersonaleNomi(v).map((s,i)=>`${i+1}) ${esc(s)}`), ...v.altriPresenti.map(esc)].join('<br>');
-  const presentiBoxHtml = `<div class="doc-box"><b>Presenti al momento del sopralluogo</b><br>${presentiListHtml||'—'}<br><br><b>il CSE</b> <span class="doc-u">${esc(v.cse)||'—'}</span></div>`;
+  const presentiBoxHtml = `<div class="doc-box" style="font-size:11px;line-height:1.5;"><b>Presenti al momento del sopralluogo</b><br>${presentiListHtml||'—'}<br><br><b>il CSE</b> <span class="doc-u">${esc(v.cse)||'—'}</span></div>`;
 
   const fasiFotoHtml = v.fotoFasi.length ? `<div class="doc-photogrid fasi-fixed">${v.fotoFasi.map(p=>`<div class="p"><img src="${p.img}"><div class="c">${esc(p.caption)}</div></div>`).join('')}</div>` : '';
 
@@ -1725,41 +1896,44 @@ function viewDocumento(){
       <div class="doc-visita-tag">VISITA</div>
       <div class="doc-visita-fields">${visitaFieldsHtml}</div>
     </div>
-    <div class="doc-box-line"><b>Cantiere di:</b> <span class="doc-u">${esc(v.cantiereNome)}</span> &nbsp;&nbsp; <b>Sito in:</b> <span class="doc-u">${esc(v.sito)}</span></div>
+    <div class="doc-box-line"><b>Cantiere di:</b> <span class="doc-u">${esc(cantiereCittaProv(v))}</span> &nbsp;&nbsp; <b>Sito in:</b> <span class="doc-u">${esc(v.sito)}</span></div>
     ${attivitaTable}
-    ${commRlHtml}
-    <div class="doc-chk-list">${impreseChkHtml}</div>
+    <div class="doc-box">
+      ${commRlHtml}
+      <div class="doc-chk-list" style="margin:0;">${impreseChkHtml}</div>
+    </div>
     ${presentiBoxHtml}
     ${v.fotoFasi.length ? `<div class="doc-bar">Fasi di lavoro in atto</div>${fasiFotoHtml}` : ''}
     ${docFooter(nextPage(), totalPages)}
   </div>`;
 
-  /* ---- osservanze: one page per impresa, split into up to 3 fisiche pagine se il contenuto non entra
-     (vedi paginateOsservanzePage() più sotto — la numerazione pagina/totale viene ricalcolata a parte) ---- */
+  /* ---- osservanze: TRE pagine dedicate per impresa (NOTE / OSSERVANZE / PRESCRIZIONI), ciascuna
+     spezzabile in più pagine fisiche (fino a 3) se il contenuto non entra — vedi paginateOsservanzePage()
+     più sotto — la numerazione pagina/totale viene ricalcolata a parte ---- */
   const ossHtml = v.osservanze.map(o=>{
     const impresa = v.impreseCoinvolte.find(i=>i.impresaId===o.impresaId);
+    const impresaNome = esc(impresa?impresa.nome:'');
     const frasiByCat = cat => DB.frasi.filter(f=>o.selFrasi.includes(f.id) && f.categoria===cat)
       .map(f=>`<div class="doc-phrase">${esc(f.testo)}</div>`).join('');
     const prescr = DB.frasi.filter(f=>o.selPrescrizioni.includes(f.id))
       .map(f=>`<div class="doc-phrase">${esc(f.testo)}</div>`).join('');
     const fotoHtml = o.foto.length ? `<div class="doc-photogrid fasi-fixed" data-oss-flow="foto">${o.foto.map(p=>`<div class="p"><img src="${p.img}"><div class="c">${esc(p.caption)}</div></div>`).join('')}</div>` : '';
     const targetChk = impresaFixedRows(v.impreseCoinvolte, o.impresaId);
-    const phraseBody = frasiByCat('standard')+frasiByCat('daAggiungere')+frasiByCat('noteSpecifiche')+(o.noteLibere?`<div class="doc-phrase">${esc(o.noteLibere)}</div>`:'');
-    const prescrBlock = (prescr || o.prescrizioniLibere) ? `
-      <div class="oss-prescr-block" data-oss-flow="prescrizioni">
-      <div style="margin-top:14px;font-size:12px;"><b>PRESCRIZIONI ALL'IMPRESA:</b> <span class="doc-u">${esc(impresa?impresa.nome:'')}</span></div>
-      <div class="doc-box">${prescr}${o.prescrizioniLibere?`<div class="doc-phrase">${esc(o.prescrizioniLibere)}</div>`:''}</div>
-      </div>` : '';
-    return `
-    <div class="doc-page" data-oss-page="1" data-oss-impresa="${esc(impresa?impresa.nome:'')}">
+    const noteBody = frasiByCat('standard')+(o.noteLibere?`<div class="doc-phrase">${esc(o.noteLibere)}</div>`:'');
+    const osservanzeBody = frasiByCat('daAggiungere')+frasiByCat('noteSpecifiche');
+    const prescrBody = prescr+(o.prescrizioniLibere?`<div class="doc-phrase">${esc(o.prescrizioniLibere)}</div>`:'');
+    const dedicatedPage = (barLabel, body, extraHtml) => `
+    <div class="doc-page" data-oss-page="1" data-oss-impresa="${impresaNome}">
       ${docLogoImg()}
-      <div class="doc-bar">OSSERVANZE</div>
-      <div class="doc-chk-list">${targetChk}</div>
-      ${fotoHtml}
-      <div class="doc-box" data-oss-textbox="1">${phraseBody || '<div class="doc-phrase">—</div>'}</div>
-      ${prescrBlock}
+      <div class="doc-bar">${barLabel}</div>
+      <div class="doc-chk-list boxed">${targetChk}</div>
+      <div class="doc-box" data-oss-textbox="1">${body || '<div class="doc-phrase">—</div>'}</div>
+      ${extraHtml||''}
       ${docFooter(nextPage(), totalPages)}
     </div>`;
+    return dedicatedPage('NOTE', noteBody, '')
+      + dedicatedPage('OSSERVANZE', osservanzeBody, '')
+      + dedicatedPage(`PRESCRIZIONI: ${impresaNome}`, prescrBody, fotoHtml);
   }).join('');
 
   /* ---- sospensione: always present, crossed out when not attiva ---- */
@@ -1773,9 +1947,7 @@ function viewDocumento(){
   const suspFotoHtml = (s.fotoFase&&s.fotoFase.length) ? `<div class="doc-photogrid fasi-fixed">${s.fotoFase.map(p=>`<div class="p"><img src="${p.img}"><div class="c">${esc(p.caption)}</div></div>`).join('')}</div>` : '';
   const suspRipristinoHtml = (s.fotoRipristino&&s.fotoRipristino.length) ? `<div class="doc-photogrid fasi-fixed">${s.fotoRipristino.map(p=>`<div class="p"><img src="${p.img}"><div class="c">${esc(p.caption)}</div></div>`).join('')}</div>` : '';
 
-  const suspPage = `
-  <div class="doc-page">
-    ${docLogoImg()}
+  const suspBlockHtml = `
     <div class="doc-bar" style="margin-bottom:0;">SOSPENSIONE DEI LAVORI per pericolo grave, imminente e direttamente riscontrato</div>
     <div class="doc-box doc-susp-box" style="border-top:none;">
       <div style="font-size:11.5px;margin-bottom:6px;"><b>nei confronti di:</b></div>
@@ -1791,9 +1963,7 @@ function viewDocumento(){
       ${chkRow(s.verificaAvvenuta, "il pericolo grave, imminente e direttamente riscontrato è stato eliminato (come evidenziato nelle sottostanti fotografie)")}
       ${suspRipristinoHtml}
       ${!s.attiva ? `<svg class="doc-susp-diag" viewBox="0 0 100 100" preserveAspectRatio="none"><line x1="2" y1="2" x2="98" y2="98" stroke="#000" stroke-width="1.5" vector-effect="non-scaling-stroke"/></svg>` : ''}
-    </div>
-    ${docFooter(nextPage(), totalPages)}
-  </div>`;
+    </div>`;
 
   /* ---- firme + distribuzione ---- */
   const destRows = DB.destinatari.filter(d=>v.destinatariSelezionati.includes(d.id))
@@ -1802,7 +1972,7 @@ function viewDocumento(){
 
   const invioHtml = chkInline(v.modalitaInvio.email,'e-mail') + chkInline(v.modalitaInvio.fax,'via fax') + chkInline(v.modalitaInvio.brevimano,'a brevi mano');
 
-  const docSigLine = (role, name, img) => `<div class="doc-sigline"><div class="role">${role}</div>${img?`<img class="sig-img" src="${img}">`:''}<div class="nameline"></div><div class="name">${esc(name)||' '}</div></div>`;
+  const docSigLine = (role, name, img) => `<div class="doc-sigline"><div class="role">${role}</div>${img?`<img class="sig-img" src="${img}">`:''}<div class="nameline"></div><div class="name">${esc(name)||' '}</div></div>`;
   const firmeHtml = `
     <div class="doc-signatures">
       ${docSigLine('Il coordinatore della sicurezza<br>in fase di esecuzione', v.cse, v.firmaCSEImg)}
@@ -1811,10 +1981,13 @@ function viewDocumento(){
       ${v.firmaExtra && v.firmaExtra.nome?docSigLine(esc(v.firmaExtra.label||'Altra firma'), v.firmaExtra.nome, v.firmaExtra.img):''}
     </div>`;
 
+  /* sospensione e firme/distribuzione condivise sulla stessa pagina finale (in precedenza due pagine
+     separate anche quando la sospensione non era attiva, lasciando molto spazio bianco inutilizzato) */
   const lastPage = `
   <div class="doc-page">
     ${docLogoImg()}
-    <div class="doc-bar" style="line-height:1.4;">Quanto contenuto nel presente rapporto costituisce adempimento degli obblighi dell'art. 92, comma 1, e aggiornamento del PSC e dei POS delle imprese affidataria ed esecutrici.</div>
+    ${suspBlockHtml}
+    <div class="doc-bar" style="line-height:1.4;margin-top:16px;">Quanto contenuto nel presente rapporto costituisce adempimento degli obblighi dell'art. 92, comma 1, e aggiornamento del PSC e dei POS delle imprese affidataria ed esecutrici.</div>
     ${firmeHtml}
     <div style="font-size:12px;margin-top:22px;">Il presente verbale è composto da <span class="doc-u">${totalPages}</span> pagine e viene inviato via ${invioHtml} a:</div>
     <div class="doc-chk-list" style="margin-top:8px;">${destRows}</div>
@@ -1827,7 +2000,6 @@ function viewDocumento(){
     ${coverPage}
     ${visitaPage}
     ${ossHtml}
-    ${suspPage}
     ${lastPage}
   </div>`;
 
@@ -1887,11 +2059,12 @@ function paginateOsservanzePage(pageEl, maxPages){
   const prescrNode = pageEl.querySelector(':scope > [data-oss-flow="prescrizioni"]');
   const footer = pageEl.querySelector(':scope > .doc-footer');
   const headerEls = [...pageEl.querySelectorAll(':scope > .doc-logo-row, :scope > .doc-bar, :scope > .doc-chk-list')];
+  const barLabelHtml = pageEl.querySelector(':scope > .doc-bar')?.innerHTML || '';
 
   const flow = [];
-  if(fotoNode) flow.push({type:'foto', el:fotoNode});
   phraseNodes.forEach(el=>flow.push({type:'phrase', el}));
   if(prescrNode) flow.push({type:'prescr', el:prescrNode});
+  if(fotoNode) flow.push({type:'foto', el:fotoNode});
   if(!flow.length) return;
 
   const vMargins = el => { const cs = getComputedStyle(el); return (parseFloat(cs.marginTop)||0) + (parseFloat(cs.marginBottom)||0); };
@@ -1945,11 +2118,14 @@ function paginateOsservanzePage(pageEl, maxPages){
     if(footer) page.appendChild(footer.cloneNode(true));
     return page;
   });
-  // "(segue)" sulle pagine di continuazione, per ripetere chiaramente OSSERVANZE + nome impresa
+  // "(segue)" sulle pagine di continuazione, per ripetere chiaramente il titolo pagina + nome impresa
+  // (se il nome impresa è già presente nel titolo, es. "PRESCRIZIONI: <impresa>", non lo ripete)
+  const impresaGiaNelTitolo = impresaNome && barLabelHtml.includes(esc(impresaNome));
+  const segueSuffix = impresaGiaNelTitolo ? '' : ` — ${esc(impresaNome)}`;
   newPages.forEach((page,idx)=>{
     if(idx===0) return;
     const bar = page.querySelector('.doc-bar');
-    if(bar) bar.innerHTML = `OSSERVANZE <span class="sub">(segue) — ${esc(impresaNome)}</span>`;
+    if(bar) bar.innerHTML = `${barLabelHtml} <span class="sub">(segue)${segueSuffix}</span>`;
   });
 
   pageEl.replaceWith(...newPages);
@@ -2012,7 +2188,7 @@ function buildWordHTML(v){
   const box = () => `border:1px solid #000;padding:10px 12px;margin-bottom:10px;`;
   const bar = (bg=NAVY) => `background:${bg};color:#fff;font-weight:bold;padding:7px 12px;margin:12px 0 10px;font-family:Arial,sans-serif;font-size:12.5px;`;
   const u = () => `border-bottom:1px solid #000;padding:0 4px;font-weight:bold;color:${NAVY};`;
-  const totalPages = v.osservanze.length + 4;
+  const totalPages = v.osservanze.length + 3;
   /* logo at native, unscaled size (208x88px) on every page, matching the source docx;
      on the cover page it is pulled further toward the physical top-left corner of the sheet */
   const logoImg = ()=>`<img src="${DOC_LOGO_SRC}" width="208" height="88" alt="Italgas Reti" style="display:block;margin:-55pt 0 14px -26pt;">`;
@@ -2025,7 +2201,7 @@ function buildWordHTML(v){
   /* fixed 4-row impresa schema (Impresa affidataria / esecutrice / in subappalto / Lavoratore autonomo in
      subappalto), matching the source docx exactly — see impresaFixedRows() for the same logic used on screen/PDF */
   const impresaFixedRowsWord = (imprese, selectedImpresaId) => IMPRESA_RUOLI.map(ruolo=>{
-    const inRuolo = imprese.filter(ic=>ic.ruolo===ruolo);
+    const inRuolo = imprese.filter(ic=>ruoliOf(ic).includes(ruolo));
     const on = selectedImpresaId!=null ? inRuolo.some(ic=>ic.impresaId===selectedImpresaId) : inRuolo.length>0;
     const label = inRuolo.length
       ? `<b>${esc(ruolo)}:</b> <span style="${u()}">${esc(inRuolo.map(ic=>ic.nome).join(', '))}</span>`
@@ -2041,7 +2217,7 @@ function buildWordHTML(v){
       <div style="color:${COVER_BLUE};font-family:${COVER_FONT};font-weight:bold;font-size:14pt;">Allegato ${esc(DOC_ALLEGATO_NUM)}</div>
       <div style="color:${COVER_BLUE};font-family:${COVER_FONT};font-weight:bold;font-size:14pt;text-transform:uppercase;margin:8px auto;max-width:480px;line-height:1.4;">VERBALE VISITA IN CANTIERE DEL COORDINATORE PER L'ESECUZIONE DEI LAVORI</div>
       <div style="color:${COVER_BLUE};font-family:${COVER_FONT};font-weight:bold;font-size:14pt;margin-bottom:22px;">Aggiornamento del ${esc(DOC_AGGIORNAMENTO)}</div>
-      <div style="display:inline-block;border:1px solid ${COVER_BLUE};padding:10px 18px;color:${COVER_BLUE};font-family:${COVER_FONT};font-weight:bold;font-size:12.5px;">${esc(('RETE ' + (v.cantiereNome||'')).toUpperCase())}</div>
+      <div style="display:inline-block;border:1px solid ${COVER_BLUE};padding:10px 18px;color:${COVER_BLUE};font-family:${COVER_FONT};font-weight:bold;font-size:12.5px;">${esc([v.tipologiaLavoro, cantiereCoverLabel(v)].filter(Boolean).join(' ').toUpperCase())}</div>
     </div>
   </div>`;
 
@@ -2052,7 +2228,7 @@ function buildWordHTML(v){
   /* foto fasi di lavoro: 4cm x 5,33cm fisse, 3 per riga (righe nuove ogni 3 foto — almeno 6 foto = 2 righe) */
   const fasiFotoHtml = (() => {
     if(!v.fotoFasi.length) return '';
-    const cellHtml = p => `<td style="width:5.33cm;padding:4px;vertical-align:top;"><img src="${p.img}" style="width:5.33cm;height:4cm;object-fit:cover;"><br><span style="font-size:9.5px;color:#5b6b7c;">${esc(p.caption)}</span></td>`;
+    const cellHtml = p => `<td style="width:5.33cm;padding:4px;vertical-align:top;"><img src="${p.img}" style="width:5.33cm;height:4cm;object-fit:cover;"><br><span style="font-size:11px;color:#5b6b7c;">${esc(p.caption)}</span></td>`;
     let rows = '';
     for(let i=0;i<v.fotoFasi.length;i+=3){
       rows += `<tr>${v.fotoFasi.slice(i,i+3).map(cellHtml).join('')}</tr>`;
@@ -2069,7 +2245,7 @@ function buildWordHTML(v){
         &nbsp;&nbsp;<b>n°</b> <span style="${u()}">${esc(String(v.numero))}</span> / <span style="${u()}">${esc(String(v.anno))}</span>
       </td>
     </tr></table>
-    <div style="font-size:12.5px;margin-bottom:10px;border:1px solid #000;padding:8px 10px;"><b>Cantiere di:</b> <span style="${u()}">${esc(v.cantiereNome)}</span> &nbsp;&nbsp; <b>Sito in:</b> <span style="${u()}">${esc(v.sito)}</span></div>
+    <div style="font-size:12.5px;margin-bottom:10px;border:1px solid #000;padding:8px 10px;"><b>Cantiere di:</b> <span style="${u()}">${esc(cantiereCittaProv(v))}</span> &nbsp;&nbsp; <b>Sito in:</b> <span style="${u()}">${esc(v.sito)}</span></div>
     <table width="100%" style="border-collapse:collapse;border:1px solid #000;margin-bottom:6px;">
       <tr><td colspan="3" style="background:${NAVY};color:#fff;font-weight:bold;padding:3px 10px;font-size:11px;">ATTIVITA'</td></tr>
       <tr><td style="border:1px solid #000;padding:1.5px 9px;font-size:10px;width:70%;">Arrivo in cantiere ed inizio sopralluogo</td><td style="border:1px solid #000;padding:1.5px 9px;font-size:10px;text-align:center;">h</td><td style="border:1px solid #000;padding:1.5px 9px;font-size:10px;background:${BLUEBG};color:${NAVY};font-weight:bold;text-align:center;">${v.oraArrivoCantiere||'—'}</td></tr>
@@ -2078,24 +2254,27 @@ function buildWordHTML(v){
       <tr><td style="border:1px solid #000;padding:1.5px 9px;font-size:10px;">In data ${fmtDate(v.data)}: redazione verbale di sopralluogo</td><td style="border:1px solid #000;padding:1.5px 9px;font-size:10px;text-align:center;">h</td><td style="border:1px solid #000;padding:1.5px 9px;font-size:10px;background:${BLUEBG};color:${NAVY};font-weight:bold;text-align:center;">${v.oraRedazione||'—'}</td></tr>
       <tr><td style="border:1px solid #000;padding:1.5px 9px;font-size:10px;font-weight:bold;">Per complessive</td><td style="border:1px solid #000;padding:1.5px 9px;font-size:10px;text-align:center;">h</td><td style="border:1px solid #000;padding:1.5px 9px;font-size:10px;background:${BLUEBG};color:${NAVY};font-weight:bold;text-align:center;">${totalHours(v)||'—'}</td></tr>
     </table>
-    <table width="100%" style="margin-bottom:10px;"><tr>
-      <td style="width:50%;font-size:12.5px;"><b>Committente:</b> <span style="${u()}">${esc(v.committente)||'—'}</span></td>
-      <td style="width:50%;font-size:12.5px;"><b>Responsabile Lavori:</b> <span style="${u()}">${esc(v.responsabileLavori)||'—'}</span></td>
-    </tr></table>
-    ${impreseChkHtml}
-    <div style="${box()}"><b>Presenti al momento del sopralluogo</b><br>${presentiCols||'—'}<br><br><b>il CSE</b> <span style="${u()}">${esc(v.cse)||'—'}</span></div>
+    <div style="${box()}">
+      <table width="100%" style="margin-bottom:6px;"><tr>
+        <td style="width:50%;font-size:12.5px;"><b>Committente:</b> <span style="${u()}">${esc(v.committente)||'—'}</span></td>
+        <td style="width:50%;font-size:12.5px;"><b>Responsabile Lavori:</b> <span style="${u()}">${esc(v.responsabileLavori)||'—'}</span></td>
+      </tr></table>
+      ${impreseChkHtml}
+    </div>
+    <div style="font-size:11px;line-height:1.5;${box()}"><b>Presenti al momento del sopralluogo</b><br>${presentiCols||'—'}<br><br><b>il CSE</b> <span style="${u()}">${esc(v.cse)||'—'}</span></div>
     ${v.fotoFasi.length ? `<div style="${bar()}">Fasi di lavoro in atto</div>${fasiFotoHtml}` : ''}
   </div>`;
 
-  /* ---- osservanze: one page per impresa ---- */
+  /* ---- osservanze: TRE pagine dedicate per impresa (NOTE / OSSERVANZE / PRESCRIZIONI) ---- */
   const ossPages = v.osservanze.map(o=>{
     const impresa = v.impreseCoinvolte.find(i=>i.impresaId===o.impresaId);
+    const impresaNome = esc(impresa?impresa.nome:'');
     const phraseHtml = (ids, list) => list.filter(f=>ids.includes(f.id)).map(f=>`<div style="padding:5px 0;border-top:1px solid #eee;font-size:13.5px;line-height:1.45;">${esc(f.testo)}</div>`).join('');
     const stdHtml = phraseHtml(o.selFrasi, DB.frasi.filter(f=>f.categoria==='standard'));
     const daAggHtml = phraseHtml(o.selFrasi, DB.frasi.filter(f=>f.categoria==='daAggiungere'));
-    const noteHtml = phraseHtml(o.selFrasi, DB.frasi.filter(f=>f.categoria==='noteSpecifiche'));
+    const noteSpecHtml = phraseHtml(o.selFrasi, DB.frasi.filter(f=>f.categoria==='noteSpecifiche'));
     const prescrHtml = phraseHtml(o.selPrescrizioni, DB.frasi.filter(f=>f.categoria==='prescrizioni'));
-    const fotoCellHtml = p => `<td style="width:5.33cm;padding:4px;vertical-align:top;"><img src="${p.img}" style="width:5.33cm;height:4cm;object-fit:cover;"><br><span style="font-size:9.5px;color:#5b6b7c;">${esc(p.caption)}</span></td>`;
+    const fotoCellHtml = p => `<td style="width:5.33cm;padding:4px;vertical-align:top;"><img src="${p.img}" style="width:5.33cm;height:4cm;object-fit:cover;"><br><span style="font-size:11px;color:#5b6b7c;">${esc(p.caption)}</span></td>`;
     let fotoHtml = '';
     if(o.foto.length){
       let fotoRows = '';
@@ -2103,15 +2282,19 @@ function buildWordHTML(v){
       fotoHtml = `<table style="border-collapse:collapse;margin-bottom:8px;">${fotoRows}</table>`;
     }
     const targetChk = impresaFixedRowsWord(v.impreseCoinvolte, o.impresaId);
-    const body = stdHtml+daAggHtml+noteHtml+(o.noteLibere?`<div style="padding:5px 0;border-top:1px solid #eee;font-size:13.5px;line-height:1.45;">${esc(o.noteLibere)}</div>`:'');
-    return `<div style="${pageStyle}font-family:Arial,sans-serif;font-size:12.5px;">
+    const noteBody = stdHtml+(o.noteLibere?`<div style="padding:5px 0;border-top:1px solid #eee;font-size:13.5px;line-height:1.45;">${esc(o.noteLibere)}</div>`:'');
+    const osservanzeBody = daAggHtml+noteSpecHtml;
+    const prescrBody = prescrHtml+(o.prescrizioniLibere?`<div style="padding:5px 0;border-top:1px solid #eee;font-size:13.5px;line-height:1.45;">${esc(o.prescrizioniLibere)}</div>`:'');
+    const dedicatedPage = (barLabel, body, extraHtml) => `<div style="${pageStyle}font-family:Arial,sans-serif;font-size:12.5px;">
       ${logoImg()}
-      <div style="${bar()}">OSSERVANZE</div>
-      ${targetChk}
-      ${fotoHtml}
+      <div style="${bar()}">${barLabel}</div>
+      <div style="${box()}">${targetChk}</div>
       <div style="${box()}">${body || '<div style="font-size:13.5px;">—</div>'}</div>
-      ${(prescrHtml||o.prescrizioniLibere)?`<p style="font-size:12px;margin-top:14px;"><b>PRESCRIZIONI ALL'IMPRESA:</b> <span style="${u()}">${esc(impresa?impresa.nome:'')}</span></p><div style="${box()}">${prescrHtml}${o.prescrizioniLibere?`<div style="padding:5px 0;border-top:1px solid #eee;font-size:13.5px;line-height:1.45;">${esc(o.prescrizioniLibere)}</div>`:''}</div>`:''}
+      ${extraHtml||''}
     </div>`;
+    return dedicatedPage('NOTE', noteBody, '')
+      + dedicatedPage('OSSERVANZE', osservanzeBody, '')
+      + dedicatedPage(`PRESCRIZIONI: ${impresaNome}`, prescrBody, fotoHtml);
   }).join('');
 
   /* ---- sospensione: always present ---- */
@@ -2126,12 +2309,27 @@ function buildWordHTML(v){
   const photoTableWord = (list) => (list&&list.length) ? (()=>{
     let rows = '';
     for(let i=0;i<list.length;i+=3){
-      rows += `<tr>${list.slice(i,i+3).map(p=>`<td style="width:5.33cm;padding:4px;vertical-align:top;"><img src="${p.img}" style="width:5.33cm;height:4cm;object-fit:cover;"><br><span style="font-size:9.5px;color:#5b6b7c;">${esc(p.caption)}</span></td>`).join('')}</tr>`;
+      rows += `<tr>${list.slice(i,i+3).map(p=>`<td style="width:5.33cm;padding:4px;vertical-align:top;"><img src="${p.img}" style="width:5.33cm;height:4cm;object-fit:cover;"><br><span style="font-size:11px;color:#5b6b7c;">${esc(p.caption)}</span></td>`).join('')}</tr>`;
     }
     return `<table style="border-collapse:collapse;margin:8px 0;">${rows}</table>`;
   })() : '';
 
-  const suspPage = `<div style="${pageStyle}font-family:Arial,sans-serif;font-size:12.5px;">
+    const destinatariRows = DB.destinatari.filter(d=>v.destinatariSelezionati.includes(d.id))
+    .map(d=>chk(true, `Sig. <span style="${u()}">${esc(d.nome)}</span>${d.ruolo?' - '+esc(d.ruolo):''}${d.email?' &nbsp; e-mail '+esc(d.email):''}`)).join('') || '<p style="font-size:11px;color:#5b6b7c;">Nessun destinatario selezionato.</p>';
+  const invioHtml = chkInline(v.modalitaInvio.email,'e-mail') + chkInline(v.modalitaInvio.fax,'via fax') + chkInline(v.modalitaInvio.brevimano,'a brevi mano');
+
+  const sigLine = (role,name,img)=>`<table width="100%" style="margin-top:22px;"><tr><td align="right">
+    <span style="font-size:10.5px;color:#333;">${esc(role)}</span><br>
+    ${img?`<img src="${img}" style="max-height:50px;max-width:220px;display:block;margin:4px 0 -6px auto;"><br>`:''}
+    <span style="display:inline-block;min-width:220px;border-bottom:1px solid #000;height:24px;"></span><br>
+    <span style="font-size:11.5px;font-weight:bold;color:${NAVY};">${esc(name)||'&nbsp;'}</span></td></tr></table>`;
+  let firme = sigLine('Il coordinatore della sicurezza in fase di esecuzione', v.cse, v.firmaCSEImg);
+  if(v.assistenteCSE) firme += sigLine('Assistente CSE', v.assistenteCSE, v.assistenteCSEImg);
+  v.impreseCoinvolte.forEach(i=> firme += sigLine('Preposto — '+i.nome, i.preposto, i.firmaPrepostoImg));
+  if(v.firmaExtra && v.firmaExtra.nome) firme += sigLine(v.firmaExtra.label||'Altra firma', v.firmaExtra.nome, v.firmaExtra.img);
+
+  /* ---- sospensione + firme/distribuzione: condivise sulla stessa pagina finale ---- */
+  const suspAndFirmeBlock = `<div style="${pageStyle}font-family:Arial,sans-serif;font-size:12.5px;">
       ${logoImg()}
       <div style="${bar()}margin-bottom:0;">SOSPENSIONE DEI LAVORI per pericolo grave, imminente e direttamente riscontrato</div>
       <div style="border:1px solid #000;border-top:none;padding:10px 12px;">
@@ -2149,31 +2347,14 @@ function buildWordHTML(v){
         ${chk(s.verificaAvvenuta, "il pericolo grave, imminente e direttamente riscontrato è stato eliminato")}
         ${photoTableWord(s.fotoRipristino)}
       </div>
+
+  /* ---- firme + distribuzione (sulla stessa pagina della sospensione, invece che su una pagina a parte) ---- */
+      <div style="${bar()}line-height:1.4;margin-top:16px;">Quanto contenuto nel presente rapporto costituisce adempimento degli obblighi dell'art. 92, comma 1, e aggiornamento del PSC e dei POS delle imprese affidataria ed esecutrici.</div>
+      ${firme}
+      <p style="font-size:12px;margin-top:22px;">Il presente verbale è composto da <span style="${u()}">${totalPages}</span> pagine e viene inviato via ${invioHtml} a:</p>
+      ${destinatariRows}
+      ${chk(v.rimaneCantiere, 'Rimane in cantiere a disposizione degli Enti di Vigilanza (in forma cartacea)')}
     </div>`;
-
-  /* ---- firme + distribuzione ---- */
-  const destinatariRows = DB.destinatari.filter(d=>v.destinatariSelezionati.includes(d.id))
-    .map(d=>chk(true, `Sig. <span style="${u()}">${esc(d.nome)}</span>${d.ruolo?' - '+esc(d.ruolo):''}${d.email?' &nbsp; e-mail '+esc(d.email):''}`)).join('') || '<p style="font-size:11px;color:#5b6b7c;">Nessun destinatario selezionato.</p>';
-  const invioHtml = chkInline(v.modalitaInvio.email,'e-mail') + chkInline(v.modalitaInvio.fax,'via fax') + chkInline(v.modalitaInvio.brevimano,'a brevi mano');
-
-  const sigLine = (role,name,img)=>`<table width="100%" style="margin-top:22px;"><tr><td align="right">
-    <span style="font-size:10.5px;color:#333;">${esc(role)}</span><br>
-    ${img?`<img src="${img}" style="max-height:50px;max-width:220px;display:block;margin:4px 0 -6px auto;"><br>`:''}
-    <span style="display:inline-block;min-width:220px;border-bottom:1px solid #000;height:24px;"></span><br>
-    <span style="font-size:11.5px;font-weight:bold;color:${NAVY};">${esc(name)||'&nbsp;'}</span></td></tr></table>`;
-  let firme = sigLine('Il coordinatore della sicurezza in fase di esecuzione', v.cse, v.firmaCSEImg);
-  if(v.assistenteCSE) firme += sigLine('Assistente CSE', v.assistenteCSE, v.assistenteCSEImg);
-  v.impreseCoinvolte.forEach(i=> firme += sigLine('Preposto — '+i.nome, i.preposto, i.firmaPrepostoImg));
-  if(v.firmaExtra && v.firmaExtra.nome) firme += sigLine(v.firmaExtra.label||'Altra firma', v.firmaExtra.nome, v.firmaExtra.img);
-
-  const lastPage = `<div style="${pageStyle}font-family:Arial,sans-serif;font-size:12.5px;">
-    ${logoImg()}
-    <div style="${bar()}line-height:1.4;">Quanto contenuto nel presente rapporto costituisce adempimento degli obblighi dell'art. 92, comma 1, e aggiornamento del PSC e dei POS delle imprese affidataria ed esecutrici.</div>
-    ${firme}
-    <p style="font-size:12px;margin-top:22px;">Il presente verbale è composto da <span style="${u()}">${totalPages}</span> pagine e viene inviato via ${invioHtml} a:</p>
-    ${destinatariRows}
-    ${chk(v.rimaneCantiere, 'Rimane in cantiere a disposizione degli Enti di Vigilanza (in forma cartacea)')}
-  </div>`;
 
   /* real, repeating Word footer (mso-element:footer + @page mso-footer) instead of a table placed after
      each page's content — this is what actually guarantees the footer sits at the bottom of every printed
@@ -2194,7 +2375,7 @@ function buildWordHTML(v){
     @page Section1 {size:595.3pt 841.9pt;margin:72pt 56.2pt 14pt 46pt;mso-header-margin:36pt;mso-footer-margin:14pt;mso-footer:f1;mso-paper-source:0;}
     div.Section1 {page:Section1;}
   </style>
-  </head><body>${footerDiv}<div class="Section1">${page1}${page2}${ossPages}${suspPage}${lastPage}</div></body></html>`;
+  </head><body>${footerDiv}<div class="Section1">${page1}${page2}${ossPages}${suspAndFirmeBlock}</div></body></html>`;
 }
 function downloadWord(){
   showSpinner('Genero il file Word…');
@@ -2246,7 +2427,8 @@ function attachHandlers(){
       committente:document.getElementById('f-committente').value.trim(),
       responsabileLavori:document.getElementById('f-rl').value.trim(),
       comune:document.getElementById('f-comune').value.trim(),
-      provincia:document.getElementById('f-provincia').value.trim()};
+      provincia:provinciaSigla(document.getElementById('f-provincia').value),
+      tipologiaLavoro:document.getElementById('f-cantiere-tipologia').value.trim()};
     if(isNew) DB.cantieri.push(obj); else DB.cantieri[DB.cantieri.findIndex(c=>c.id===id)]=obj;
     await sset(KEYS.cantieri, DB.cantieri); toast('Cantiere salvato'); go({name:'cantieri'});
   });
@@ -2343,6 +2525,43 @@ function attachHandlers(){
     toast(`${valid.length} dipendenti importati`);
     IMPORT_PERSONALE = null;
     go({name:'personale'});
+  });
+
+  // trasferimento dati (esporta/importa cantieri, imprese, personale)
+  const exportDatiBtn = app.querySelector('[data-export-dati]');
+  if(exportDatiBtn) exportDatiBtn.addEventListener('click', esportaDatiArchivio);
+  const importDatiFile = document.getElementById('import-dati-file');
+  if(importDatiFile) importDatiFile.addEventListener('change', ()=>{
+    const file = importDatiFile.files[0]; if(!file) return;
+    const reader = new FileReader();
+    reader.onload = e=>{ const ta = document.getElementById('import-dati-raw'); if(ta) ta.value = e.target.result; };
+    reader.readAsText(file);
+  });
+  const importDatiPreviewBtn = app.querySelector('[data-import-dati-preview]');
+  if(importDatiPreviewBtn) importDatiPreviewBtn.addEventListener('click', ()=>{
+    const raw = (document.getElementById('import-dati-raw').value||'').trim();
+    if(!raw){ toast('Carica o incolla un file da importare.'); return; }
+    let parsed = null, error = null;
+    try{
+      parsed = JSON.parse(raw);
+      if(!parsed || typeof parsed!=='object' || (!parsed.cantieri && !parsed.imprese && !parsed.personale)){
+        parsed = null; error = 'File non riconosciuto: non contiene cantieri, imprese o personale.';
+      }
+    }catch(e){ error = 'File non valido: non è un JSON leggibile.'; }
+    IMPORT_DATI_ARCHIVIO = {raw, parsed, error};
+    render();
+  });
+  const importDatiBackBtn = app.querySelector('[data-import-dati-back]');
+  if(importDatiBackBtn) importDatiBackBtn.addEventListener('click', ()=>{ IMPORT_DATI_ARCHIVIO=null; render(); });
+  const importDatiCommitBtn = app.querySelector('[data-import-dati-commit]');
+  if(importDatiCommitBtn) importDatiCommitBtn.addEventListener('click', async ()=>{
+    const stats = importDatiArchivio(IMPORT_DATI_ARCHIVIO.parsed);
+    await sset(KEYS.cantieri, DB.cantieri);
+    await sset(KEYS.imprese, DB.imprese);
+    await sset(KEYS.personale, DB.personale);
+    IMPORT_DATI_ARCHIVIO = null;
+    toast(`Importati: ${stats.cantieriNuovi} cantieri, ${stats.impreseNuove} imprese, ${stats.personaleNuovo} persone (già presenti, non duplicati: ${stats.cantieriEsistenti + stats.impreseEsistenti + stats.personaleEsistente})`);
+    go({name:'home'});
   });
 
   app.querySelectorAll('[data-edit-dest]').forEach(el=>el.addEventListener('click', ()=>go({name:'destinatario-edit', id:el.dataset.editDest})));
@@ -2498,14 +2717,20 @@ function attachHandlers(){
     const sel = document.getElementById('w-add-impresa');
     const impresa = DB.imprese.find(i=>i.id===sel.value);
     if(!impresa) return;
-    CURRENT_VERBALE.impreseCoinvolte.push({impresaId:impresa.id, nome:impresa.nome, ruolo:IMPRESA_RUOLI[0], preposto:'', firmaPrepostoImg:null});
+    CURRENT_VERBALE.impreseCoinvolte.push({impresaId:impresa.id, nome:impresa.nome, ruoli:[IMPRESA_RUOLI[0]], preposto:'', firmaPrepostoImg:null});
     render();
   });
   app.querySelectorAll('[data-rm-impresa-verbale]').forEach(el=>el.addEventListener('click', ()=>{
     CURRENT_VERBALE.impreseCoinvolte.splice(+el.dataset.rmImpresaVerbale,1); render();
   }));
   app.querySelectorAll('[data-set-ruolo-impresa]').forEach(el=>el.addEventListener('click', ()=>{
-    CURRENT_VERBALE.impreseCoinvolte[+el.dataset.setRuoloImpresa].ruolo = el.dataset.ruolo; render();
+    const ic = CURRENT_VERBALE.impreseCoinvolte[+el.dataset.setRuoloImpresa];
+    const ruoli = ruoliOf(ic).slice();
+    const r = el.dataset.ruolo;
+    const i = ruoli.indexOf(r);
+    if(i>=0) ruoli.splice(i,1); else ruoli.push(r);
+    ic.ruoli = ruoli; delete ic.ruolo;
+    render();
   }));
 
   // presenti step
