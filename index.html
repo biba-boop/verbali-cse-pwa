@@ -2738,17 +2738,25 @@ function renumberDocPages(){
 }
 /* mostra #docview fuori schermo (per poterlo misurare/catturare), spezza le pagine osservanze troppo
    lunghe in max 3 pagine fisiche e rinumera tutte le pagine di conseguenza */
+/* Fixed 794px capture width (== .doc-page's max-width, the A4-at-96dpi design width) so the
+   PDF/export always renders at the intended proportions regardless of the actual browser/device
+   viewport width — without this, on a narrow screen (e.g. iPhone) #docview had no explicit width
+   and shrank to fit, breaking .doc-page's A4 aspect ratio and making html2canvas's page-height
+   clamp in downloadPDF() squash content unevenly between pages. */
+const DOC_CAPTURE_WIDTH = 794;
+
 async function preparePaginatedDocview(){
   const docview = document.getElementById('docview');
   docview.style.display='block';
   docview.style.position='fixed'; docview.style.left='-10000px'; docview.style.top='0'; docview.style.zIndex='-1';
+  docview.style.width=DOC_CAPTURE_WIDTH+'px';
   await new Promise(r=>setTimeout(r,60));
   docview.querySelectorAll('.doc-page[data-oss-page]').forEach(p=>paginateOsservanzePage(p,3));
   renumberDocPages();
 }
 function resetDocviewPosition(){
   const docview = document.getElementById('docview');
-  docview.style.position=''; docview.style.left=''; docview.style.top=''; docview.style.zIndex='';
+  docview.style.position=''; docview.style.left=''; docview.style.top=''; docview.style.zIndex=''; docview.style.width='';
 }
 
 /* ---- PDF export (client-side, html2canvas + jsPDF) ---- */
@@ -2764,7 +2772,8 @@ async function downloadPDF(){
     const pageW = pdf.internal.pageSize.getWidth();
     const pageH = pdf.internal.pageSize.getHeight();
     for(let i=0;i<pages.length;i++){
-      const canvas = await html2canvas(pages[i], {scale:2, useCORS:true, backgroundColor:'#ffffff'});
+      const canvas = await html2canvas(pages[i], {scale:2, useCORS:true, backgroundColor:'#ffffff',
+        windowWidth:DOC_CAPTURE_WIDTH, windowHeight:pages[i].offsetHeight});
       const imgData = canvas.toDataURL('image/jpeg',0.92);
       const imgW = pageW;
       const imgH = Math.min(canvas.height * imgW / canvas.width, pageH);
