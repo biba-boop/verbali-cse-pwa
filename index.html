@@ -42,7 +42,7 @@
   html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     -webkit-tap-highlight-color:transparent;}
-  #app{max-width:720px;margin:0 auto;min-height:calc(100vh - 68px);min-height:calc(100dvh - 68px);background:var(--bg);
+  #app{max-width:720px;margin:0 auto;min-height:calc(100vh - var(--hdr-h, 68px));min-height:calc(100dvh - var(--hdr-h, 68px));background:var(--bg);
     padding-bottom:calc(90px + env(safe-area-inset-bottom));}
 
   .brand-header{position:sticky;top:0;z-index:21;background:#fff;border-bottom:1px solid var(--line);
@@ -65,7 +65,7 @@
     text-transform:none;}
   .profile-badge .name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 
-  .topbar{position:sticky;top:68px;z-index:20;background:var(--navy);color:#fff;
+  .topbar{position:sticky;top:var(--hdr-h, 68px);z-index:20;background:var(--navy);color:#fff;
     display:flex;align-items:center;gap:10px;padding:14px 14px;min-height:26px;}
   .topbar button.back{background:none;border:none;color:#fff;font-size:22px;line-height:1;
     padding:2px 6px;cursor:pointer;border-radius:6px;}
@@ -268,6 +268,8 @@
   .doc-table td{border:1px solid var(--line);padding:5px 8px;font-size:12px;vertical-align:top;}
   .doc-cols{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
   .doc-cols2-plain{display:flex;flex-wrap:wrap;gap:6px 24px;font-size:12px;margin-bottom:10px;}
+  .doc-presenti-cols{display:flex;flex-wrap:wrap;gap:2px 28px;}
+  .doc-presenti-col{line-height:1.5;}
   .doc-photogrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:8px;}
   .doc-photogrid .p img{width:100%;height:90px;object-fit:cover;border:1px solid var(--line);border-radius:3px;}
   .doc-photogrid .p .c{font-size:11px;color:var(--muted);margin-top:3px;line-height:1.3;}
@@ -673,7 +675,7 @@ async function loadVerbale(id){
   if(v.firmaExtra.img===undefined) v.firmaExtra.img = null;
   if(v.firmaCSEImg===undefined) v.firmaCSEImg = null;
   if(v.assistenteCSEImg===undefined) v.assistenteCSEImg = null;
-  (v.impreseCoinvolte||[]).forEach(i=>{ if(i.preposto===undefined) i.preposto=''; if(i.firmaPrepostoImg===undefined) i.firmaPrepostoImg=null; });
+  (v.impreseCoinvolte||[]).forEach(i=>{ if(i.preposto===undefined) i.preposto=''; if(i.firmaPrepostoImg===undefined) i.firmaPrepostoImg=null; if(i.prepostoAltro===undefined) i.prepostoAltro=false; });
   return v;
 }
 async function saveVerbale(v){
@@ -690,6 +692,15 @@ async function deleteVerbale(id){
   DB.verbaliIndex = DB.verbaliIndex.filter(x=>x.id!==id);
   await sset(KEYS.index, DB.verbaliIndex);
   cloudDeleteVerbaleIndice(id);
+}
+
+/* Conferma rinforzata per l'eliminazione di un verbale (irreversibile: foto e contenuto compilato
+   vanno persi): oltre al messaggio, chiede di ridigitare una parola chiave prima di procedere,
+   invece del semplice OK/Annulla usato per le altre eliminazioni dell'app (richiesta 09/09/2026,
+   commento sull'Artifact). */
+function confirmWithKeyword(message, keyword){
+  const input = prompt(message + '\n\nPer confermare, scrivi "' + keyword + '" e premi OK:');
+  return input !== null && input.trim().toUpperCase() === keyword.toUpperCase();
 }
 
 /* ======================= SINCRONIZZAZIONE CLOUD DELL'INDICE VERBALI (tra dispositivi) =======================
@@ -823,6 +834,7 @@ function updateProfileBadge(){
   const badge = document.getElementById('profile-badge');
   const header = document.querySelector('.brand-header');
   if(header) header.classList.toggle('centered', ROUTE.name==='accesso');
+  if(typeof syncHeaderHeight==='function') syncHeaderHeight();
   if(!badge) return;
   const name = DB.settings && DB.settings.cseDefault;
   if(ROUTE.name==='accesso' || !name){ badge.style.visibility='hidden'; return; }
@@ -1752,7 +1764,7 @@ function wizFasi(v){
   }).join('');
   return `
   <section class="block">
-    <h3>Foto cantiere / fasi di lavoro</h3>
+    <h3>FOTO CANTIERISTICA - FASI DI LAVORO - PRESIDI</h3>
     <div class="photo-grid">
       ${photos}
       <label class="add-photo-btn" for="fase-photo-input">📷<br>Aggiungi foto</label>
@@ -1802,15 +1814,6 @@ function wizOsservanze(v){
     <div class="chip-list">${tabs}</div>
   </section>
   <section class="block">
-    <h3>Foto cantieristica (per questa impresa)</h3>
-    <div class="hint" style="margin-bottom:8px;">Le foto vengono inserite nel documento in fondo alla pagina "OSSERVANZE" di questa impresa, prima della pagina "PRESCRIZIONI" (dimensione 4×5,33cm).</div>
-    <div class="photo-grid">
-      ${photos}
-      <label class="add-photo-btn" for="oss-photo-input">📷<br>Aggiungi foto</label>
-    </div>
-    <input type="file" id="oss-photo-input" accept="image/*" capture="environment" multiple style="display:none;">
-  </section>
-  <section class="block">
     <h3>Note</h3>
     <div class="hint" style="margin-bottom:8px;">Questa categoria ha una pagina dedicata nel documento, con titolo "NOTE".</div>
     ${catBlock('standard')}
@@ -1819,11 +1822,21 @@ function wizOsservanze(v){
   </section>
   <section class="block">
     <h3>Osservanze</h3>
-    <div class="hint" style="margin-bottom:8px;">Queste due categorie hanno una pagina dedicata nel documento, con titolo "OSSERVANZE" (le foto cantieristica di questa impresa compaiono in fondo a questa pagina).</div>
+    <div class="hint" style="margin-bottom:8px;">Questa categoria ha una pagina dedicata nel documento, con titolo "OSSERVANZE".</div>
     ${catBlock('daAggiungere')}
+  </section>
+  <section class="block">
+    <h3>FOTO OSSERVAZIONI (PER L'IMPRESA ${esc(impreseInVerbale.find(ic=>ic.impresaId===active)?.nome||'')})</h3>
+    <div class="hint" style="margin-bottom:8px;">Questa categoria e le foto compaiono insieme, in un riquadro dedicato, in fondo alla pagina "OSSERVANZE" di questa impresa, prima della pagina "PRESCRIZIONI".</div>
     ${catBlock('noteSpecifiche')}
     <label>Note specifiche / richieste CSE (compilazione libera, da verificare al sopralluogo successivo)</label>
     <textarea id="w-oss-notespec" data-for="${active}">${esc(oss.noteSpecificheLibere||'')}</textarea>
+    <div class="hint" style="margin:10px 0 6px;">Foto (dimensione nel documento: 4×5,33cm).</div>
+    <div class="photo-grid">
+      ${photos}
+      <label class="add-photo-btn" for="oss-photo-input">📷<br>Aggiungi foto</label>
+    </div>
+    <input type="file" id="oss-photo-input" accept="image/*" capture="environment" multiple style="display:none;">
   </section>
   <section class="block">
     <h3>Prescrizioni all'impresa</h3>
@@ -1943,12 +1956,42 @@ function signatureBlock(key, img){
   </div>`;
 }
 
+/* Candidati preposto per una data impresa: solo il personale già spuntato come presente
+   (passaggio "Presenti" del wizard) e appartenente a quell'impresa — così il preposto si sceglie
+   da un menù a tendina invece di essere ridigitato a mano (richiesta 09/09/2026). */
+function candidatiPrepostoImpresa(v, impresaId){
+  return DB.personale.filter(p => p.impresaId===impresaId && v.presentiPersonale.includes(p.id));
+}
 function wizFirme(v){
-  const prepostiRows = v.impreseCoinvolte.map((ic,idx)=>`
+  const prepostiRows = v.impreseCoinvolte.map((ic,idx)=>{
+    const candidati = candidatiPrepostoImpresa(v, ic.impresaId);
+    const prepostoValue = ic.preposto||'';
+    const candidatoAttuale = candidati.find(p => `${p.nome} ${p.cognome}` === prepostoValue);
+    const isAltro = !!ic.prepostoAltro || (!!prepostoValue && !candidatoAttuale);
+    if(candidati.length===0){
+      // nessun presente spuntato per questa impresa: resta il campo libero, con un promemoria
+      return `
+      <label>Preposto — ${esc(ic.nome)}</label>
+      <input type="text" data-preposto-idx="${idx}" value="${esc(prepostoValue)}" placeholder="Nome e cognome del preposto">
+      <div class="hint">Nessun presente spuntato per questa impresa nel passaggio "Presenti": qui puoi comunque scrivere il nome a mano, oppure torna indietro e spuntalo per poterlo scegliere da un elenco.</div>
+      ${signatureBlock('preposto-'+idx, ic.firmaPrepostoImg||null)}
+      `;
+    }
+    const options = [`<option value="">Seleziona preposto…</option>`]
+      .concat(candidati.map(p=>{
+        const val = `${p.nome} ${p.cognome}`;
+        const label = p.mansione ? `${val} — ${esc(p.mansione)}` : val;
+        return `<option value="${esc(val)}" ${val===prepostoValue?'selected':''}>${label}</option>`;
+      }))
+      .concat([`<option value="__altro__" ${isAltro?'selected':''}>✎ Altro (scrivi il nome)</option>`])
+      .join('');
+    return `
     <label>Preposto — ${esc(ic.nome)}</label>
-    <input type="text" data-preposto-idx="${idx}" value="${esc(ic.preposto||'')}" placeholder="Nome e cognome del preposto">
+    <select data-preposto-select-idx="${idx}">${options}</select>
+    ${isAltro?`<input type="text" data-preposto-idx="${idx}" value="${esc(prepostoValue)}" placeholder="Nome e cognome del preposto" style="margin-top:6px;">`:''}
     ${signatureBlock('preposto-'+idx, ic.firmaPrepostoImg||null)}
-  `).join('') || `<div class="hint">Aggiungi prima le imprese coinvolte per poter indicare i rispettivi preposti.</div>`;
+    `;
+  }).join('') || `<div class="hint">Aggiungi prima le imprese coinvolte per poter indicare i rispettivi preposti.</div>`;
 
   return `
   <section class="block">
@@ -1987,7 +2030,7 @@ function wizDestinatari(v){
     <div class="chip-list">
       <span class="chip ${v.modalitaInvio.email?'on':''}" data-modo="email">E-mail</span>
       <span class="chip ${v.modalitaInvio.fax?'on':''}" data-modo="fax">Fax</span>
-      <span class="chip ${v.modalitaInvio.brevimano?'on':''}" data-modo="brevimano">A mani</span>
+      <span class="chip ${v.modalitaInvio.brevimano?'on':''}" data-modo="brevimano">WhatsApp / app</span>
     </div>
   </section>
   <section class="block">
@@ -2021,6 +2064,31 @@ function presentiPersonaleNomi(v){
     const extra = [p.mansione||'', impresa?impresa.nome:''].filter(Boolean).join(' — ');
     return extra ? `${p.nome} ${p.cognome} — ${extra}` : `${p.nome} ${p.cognome}`;
   }).filter(Boolean);
+}
+/* Elenco "Presenti al momento del sopralluogo" affiancato su più colonne, 4 nominativi per
+   colonna (richiesta 09/09/2026, verbale Ponte del passo), invece di un'unica lista verticale. */
+function presentiInColonne(items){
+  const cols = [];
+  for(let i=0;i<items.length;i+=4) cols.push(items.slice(i,i+4));
+  return cols;
+}
+function presentiColonneHtml(items){
+  if(!items.length) return '—';
+  const cols = presentiInColonne(items);
+  return `<div class="doc-presenti-cols">${cols.map(col=>`<div class="doc-presenti-col">${col.join('<br>')}</div>`).join('')}</div>`;
+}
+function presentiColonneHtmlWord(items){
+  if(!items.length) return '—';
+  const cols = presentiInColonne(items);
+  return `<table style="border-collapse:collapse;"><tr>${cols.map(col=>`<td style="vertical-align:top;padding-right:28px;font-size:12px;">${col.join('<br>')}</td>`).join('')}</tr></table>`;
+}
+/* Elenco numerato "Presenti al momento del sopralluogo": gli operai/dipendenti (da Personale,
+   spuntati come presenti nel passaggio "Presenti") seguiti da "Altri presenti" (CSE, DL,
+   committente, ecc. — testo libero), con un'unica numerazione progressiva su tutto l'elenco
+   (prima "Altri presenti" non era numerato — richiesta 09/09/2026). */
+function presentiNumeratiItems(v){
+  const items = [...presentiPersonaleNomi(v), ...(v.altriPresenti||[])];
+  return items.map((s,i)=>`${i+1}) ${esc(s)}`);
 }
 
 function viewAnteprima(){
@@ -2176,7 +2244,7 @@ function viewDocumento(){
     <div><b>Responsabile Lavori:</b> <span class="doc-u">${esc(v.responsabileLavori)||'—'}</span></div>
   </div>`;
 
-  const presentiListHtml = [...presentiPersonaleNomi(v).map((s,i)=>`${i+1}) ${esc(s)}`), ...v.altriPresenti.map(esc)].join('<br>');
+  const presentiListHtml = presentiColonneHtml(presentiNumeratiItems(v));
   const presentiBoxHtml = `<div class="doc-box" style="font-size:12px;line-height:1.5;"><b>Presenti al momento del sopralluogo</b><br>${presentiListHtml||'—'}<br><br><b>il CSE</b> <span class="doc-u">${esc(v.cse)||'—'}</span></div>`;
 
   const fasiFotoHtml = v.fotoFasi.length ? `<div class="doc-photogrid fasi-fixed">${v.fotoFasi.map(p=>`<div class="p"><img src="${p.img}"><div class="c">${esc(p.caption)}</div></div>`).join('')}</div>` : '';
@@ -2209,10 +2277,16 @@ function viewDocumento(){
       .map(f=>`<div class="doc-phrase">${esc(f.testo)}</div>`).join('');
     const prescr = DB.frasi.filter(f=>o.selPrescrizioni.includes(f.id))
       .map(f=>`<div class="doc-phrase">${esc(f.testo)}</div>`).join('');
-    const fotoHtml = o.foto.length ? `<div class="doc-photogrid fasi-fixed" data-oss-flow="foto">${o.foto.map(p=>`<div class="p"><img src="${p.img}"><div class="c">${esc(p.caption)}</div></div>`).join('')}</div>` : '';
+    const fotoHtml = o.foto.length ? `<div class="doc-photogrid fasi-fixed">${o.foto.map(p=>`<div class="p"><img src="${p.img}"><div class="c">${esc(p.caption)}</div></div>`).join('')}</div>` : '';
     const targetChk = impresaFixedRows(v.impreseCoinvolte, o.impresaId);
     const noteBody = frasiByCat('standard')+(o.noteLibere?`<div class="doc-phrase">${esc(o.noteLibere)}</div>`:'');
-    const osservanzeBody = frasiByCat('daAggiungere')+frasiByCat('noteSpecifiche')+(o.noteSpecificheLibere?`<div class="doc-phrase">${esc(o.noteSpecificheLibere)}</div>`:'');
+    const daAggBody = frasiByCat('daAggiungere');
+    /* Note specifiche CSE + foto: riquadro proprio, mostrato solo quando c'è davvero qualcosa da
+       racchiudere (frasi "note specifiche", testo libero o foto) — richiesta 09/09/2026, verbale
+       Ponte del passo. È un blocco unico e indivisibile ai fini dell'impaginazione automatica
+       (vedi data-oss-flow="notespec" e paginateOsservanzePage() più sotto). */
+    const noteSpecContent = frasiByCat('noteSpecifiche')+(o.noteSpecificheLibere?`<div class="doc-phrase">${esc(o.noteSpecificheLibere)}</div>`:'');
+    const noteSpecBoxHtml = (noteSpecContent || o.foto.length) ? `<div class="doc-box" data-oss-flow="notespec">${noteSpecContent}${fotoHtml}</div>` : '';
     const prescrBody = prescr+(o.prescrizioniLibere?`<div class="doc-phrase">${esc(o.prescrizioniLibere)}</div>`:'');
     const dedicatedPage = (barLabel, body, extraHtml) => `
     <div class="doc-page" data-oss-page="1" data-oss-impresa="${impresaNome}">
@@ -2224,7 +2298,7 @@ function viewDocumento(){
       ${docFooter(nextPage(), totalPages)}
     </div>`;
     return dedicatedPage('NOTE', noteBody, '')
-      + dedicatedPage('OSSERVANZE', osservanzeBody, fotoHtml)
+      + dedicatedPage('OSSERVANZE', daAggBody, noteSpecBoxHtml)
       + dedicatedPage(`PRESCRIZIONI: ${impresaNome}`, prescrBody, '');
   }).join('');
 
@@ -2262,7 +2336,7 @@ function viewDocumento(){
     .map(d=>chkRow(true, `Sig. <span class="doc-u">${esc(d.nome)}</span>${d.ruolo?' - '+esc(d.ruolo):''}${d.email?' &nbsp; e-mail '+esc(d.email):''}`))
     .join('') || `<div style="font-size:12px;color:var(--muted);">Nessun destinatario selezionato.</div>`;
 
-  const invioHtml = chkInline(v.modalitaInvio.email,'e-mail') + chkInline(v.modalitaInvio.fax,'via fax') + chkInline(v.modalitaInvio.brevimano,'a brevi mano');
+  const invioHtml = chkInline(v.modalitaInvio.email,'e-mail') + chkInline(v.modalitaInvio.fax,'via fax') + chkInline(v.modalitaInvio.brevimano,'via WhatsApp / app');
 
   const docSigLine = (role, name, img) => `<div class="doc-sigline"><div class="role">${role}</div>${img?`<img class="sig-img" src="${img}">`:''}<div class="nameline"></div><div class="name">${esc(name)||' '}</div></div>`;
   const firmeHtml = `
@@ -2283,7 +2357,7 @@ function viewDocumento(){
     ${firmeHtml}
     <div style="font-size:12px;margin-top:22px;">Il presente verbale è composto da <span class="doc-u">${totalPages}</span> pagine e viene inviato via ${invioHtml} a:</div>
     <div class="doc-chk-list" style="margin-top:8px;">${destRows}</div>
-    <div class="doc-chk-list">${chkRow(v.rimaneCantiere, 'Rimane in cantiere a disposizione degli Enti di Vigilanza (in forma cartacea)')}</div>
+    <div class="doc-chk-list">${chkRow(v.rimaneCantiere, 'Rimane in cantiere a disposizione degli Enti di Vigilanza (in formato digitale)')}</div>
     ${docFooter(nextPage(), totalPages)}
   </div>`;
 
@@ -2347,6 +2421,7 @@ function resizeImage(file, cb){
 function paginateOsservanzePage(pageEl, maxPages){
   const textbox = pageEl.querySelector(':scope > .doc-box[data-oss-textbox]');
   const phraseNodes = textbox ? [...textbox.children] : [];
+  const notespecNode = pageEl.querySelector(':scope > [data-oss-flow="notespec"]');
   const fotoNode = pageEl.querySelector(':scope > [data-oss-flow="foto"]');
   const prescrNode = pageEl.querySelector(':scope > [data-oss-flow="prescrizioni"]');
   const footer = pageEl.querySelector(':scope > .doc-footer');
@@ -2356,6 +2431,7 @@ function paginateOsservanzePage(pageEl, maxPages){
   const flow = [];
   phraseNodes.forEach(el=>flow.push({type:'phrase', el}));
   if(prescrNode) flow.push({type:'prescr', el:prescrNode});
+  if(notespecNode) flow.push({type:'notespec', el:notespecNode});
   if(fotoNode) flow.push({type:'foto', el:fotoNode});
   if(!flow.length) return;
 
@@ -2515,7 +2591,7 @@ function buildWordHTML(v){
   /* ---- page 2: visita ---- */
   const [dY,dM,dD] = (v.data||'').split('-');
   const impreseChkHtml = impresaFixedRowsWord(v.impreseCoinvolte);
-  const presentiCols = [...presentiPersonaleNomi(v).map((s,i)=>`${i+1}) ${esc(s)}`), ...v.altriPresenti.map(esc)].join('<br>');
+  const presentiCols = presentiColonneHtmlWord(presentiNumeratiItems(v));
   /* foto fasi di lavoro: 4cm x 5,33cm fisse, 3 per riga (righe nuove ogni 3 foto — almeno 6 foto = 2 righe) */
   const fasiFotoHtml = (() => {
     if(!v.fotoFasi.length) return '';
@@ -2574,7 +2650,10 @@ function buildWordHTML(v){
     }
     const targetChk = impresaFixedRowsWord(v.impreseCoinvolte, o.impresaId);
     const noteBody = stdHtml+(o.noteLibere?`<div style="padding:5px 0;border-top:1px solid #eee;font-size:12px;line-height:1.45;">${esc(o.noteLibere)}</div>`:'');
-    const osservanzeBody = daAggHtml+noteSpecHtml+(o.noteSpecificheLibere?`<div style="padding:5px 0;border-top:1px solid #eee;font-size:12px;line-height:1.45;">${esc(o.noteSpecificheLibere)}</div>`:'');
+    /* Note specifiche CSE + foto: riquadro proprio (stessa richiesta 09/09/2026 applicata al PDF
+       sopra), mostrato solo quando c'è davvero qualcosa da racchiudere. */
+    const noteSpecContent = noteSpecHtml+(o.noteSpecificheLibere?`<div style="padding:5px 0;border-top:1px solid #eee;font-size:12px;line-height:1.45;">${esc(o.noteSpecificheLibere)}</div>`:'');
+    const noteSpecBoxHtml = (noteSpecContent || o.foto.length) ? `<div style="${box()}">${noteSpecContent}${fotoHtml}</div>` : '';
     const prescrBody = prescrHtml+(o.prescrizioniLibere?`<div style="padding:5px 0;border-top:1px solid #eee;font-size:12px;line-height:1.45;">${esc(o.prescrizioniLibere)}</div>`:'');
     const dedicatedPage = (barLabel, body, extraHtml) => `<div style="${pageStyle}font-family:Arial,sans-serif;font-size:12px;">
       ${logoImg()}
@@ -2584,7 +2663,7 @@ function buildWordHTML(v){
       ${extraHtml||''}
     </div>`;
     return dedicatedPage('NOTE', noteBody, '')
-      + dedicatedPage('OSSERVANZE', osservanzeBody, fotoHtml)
+      + dedicatedPage('OSSERVANZE', daAggHtml, noteSpecBoxHtml)
       + dedicatedPage(`PRESCRIZIONI: ${impresaNome}`, prescrBody, '');
   }).join('');
 
@@ -2607,7 +2686,7 @@ function buildWordHTML(v){
 
     const destinatariRows = DB.destinatari.filter(d=>v.destinatariSelezionati.includes(d.id))
     .map(d=>chk(true, `Sig. <span style="${u()}">${esc(d.nome)}</span>${d.ruolo?' - '+esc(d.ruolo):''}${d.email?' &nbsp; e-mail '+esc(d.email):''}`)).join('') || '<p style="font-size:12px;color:#5b6b7c;">Nessun destinatario selezionato.</p>';
-  const invioHtml = chkInline(v.modalitaInvio.email,'e-mail') + chkInline(v.modalitaInvio.fax,'via fax') + chkInline(v.modalitaInvio.brevimano,'a brevi mano');
+  const invioHtml = chkInline(v.modalitaInvio.email,'e-mail') + chkInline(v.modalitaInvio.fax,'via fax') + chkInline(v.modalitaInvio.brevimano,'via WhatsApp / app');
 
   const sigLine = (role,name,img)=>`<table width="100%" style="margin-top:22px;"><tr><td align="right">
     <span style="font-size:10.5px;color:#333;">${esc(role)}</span><br>
@@ -2644,7 +2723,7 @@ function buildWordHTML(v){
       ${firme}
       <p style="font-size:12px;margin-top:22px;">Il presente verbale è composto da <span style="${u()}">${totalPages}</span> pagine e viene inviato via ${invioHtml} a:</p>
       ${destinatariRows}
-      ${chk(v.rimaneCantiere, 'Rimane in cantiere a disposizione degli Enti di Vigilanza (in forma cartacea)')}
+      ${chk(v.rimaneCantiere, 'Rimane in cantiere a disposizione degli Enti di Vigilanza (in formato digitale)')}
     </div>`;
 
   /* real, repeating Word footer (mso-element:footer + @page mso-footer) instead of a table placed after
@@ -3022,7 +3101,7 @@ function attachHandlers(){
     toast('Verbale duplicato'); go({name:'wizard', step:'cantiere'});
   }));
   app.querySelectorAll('[data-del-verbale]').forEach(el=>el.addEventListener('click', async ()=>{
-    if(!confirm('Eliminare questo verbale?')) return;
+    if(!confirmWithKeyword('Eliminare definitivamente questo verbale? Il contenuto compilato e le foto andranno persi e l\'operazione non è reversibile.', 'GDG')) return;
     await deleteVerbale(el.dataset.delVerbale); render();
   }));
 
@@ -3202,6 +3281,12 @@ function attachHandlers(){
   prepostiInputs.forEach(el=>el.addEventListener('input', ()=>{
     CURRENT_VERBALE.impreseCoinvolte[+el.dataset.prepostoIdx].preposto = el.value;
   }));
+  app.querySelectorAll('[data-preposto-select-idx]').forEach(el=>el.addEventListener('change', ()=>{
+    const ic = CURRENT_VERBALE.impreseCoinvolte[+el.dataset.prepostoSelectIdx];
+    ic.prepostoAltro = (el.value==='__altro__');
+    ic.preposto = (el.value==='__altro__') ? '' : el.value;
+    render();
+  }));
 
   // firma grafica — disegno a mano libera (pointer events: dito/mouse/pen) o immagine caricata
   app.querySelectorAll('[data-sig-canvas]').forEach(canvas=>{
@@ -3333,6 +3418,21 @@ function persistWizardFields(step){
 
 const profileBadgeEl = document.getElementById('profile-badge');
 if(profileBadgeEl) profileBadgeEl.addEventListener('click', ()=> go({name:'profilo'}));
+
+/* La barra blu del titolo (.topbar) resta agganciata (sticky) subito sotto la barra bianca fissa
+   col logo GDG STUDIO (.brand-header), così resta sempre visibile durante lo scroll. L'offset era
+   prima un valore fisso (68px) che poteva disallinearsi dall'altezza reale della barra logo (es.
+   dopo un ridimensionamento del logo, o su dispositivi con notch/safe-area diversa): ora l'altezza
+   reale viene misurata e tenuta sincronizzata con una variabile CSS, in modo che la barra del titolo
+   sia sempre incollata esattamente sotto quella del logo, senza spazi vuoti né sovrapposizioni
+   (richiesta 09/09/2026, commento sull'Artifact). */
+function syncHeaderHeight(){
+  const header = document.querySelector('.brand-header');
+  if(header) document.documentElement.style.setProperty('--hdr-h', header.offsetHeight + 'px');
+}
+syncHeaderHeight();
+window.addEventListener('resize', syncHeaderHeight);
+window.addEventListener('orientationchange', syncHeaderHeight);
 
 boot();
 
