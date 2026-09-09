@@ -2585,7 +2585,7 @@ function viewDocumento(){
     ${suspBlockHtml}
     <div class="doc-bar" style="line-height:1.4;margin-top:16px;">Quanto contenuto nel presente rapporto costituisce adempimento degli obblighi dell'art. 92, comma 1, e aggiornamento del PSC e dei POS delle imprese affidataria ed esecutrici.</div>
     ${firmeHtml}
-    <div style="font-size:12px;margin-top:22px;">Il presente verbale è composto da <span class="doc-u" data-total-pages>${totalPages}</span> pagine e viene inviato via ${invioHtml} a:</div>
+    <div style="font-size:12px;margin-top:22px;">Il presente verbale è composto da <span class="doc-u">${totalPages}</span> pagine e viene inviato via ${invioHtml} a:</div>
     <div class="doc-chk-list" style="margin-top:8px;">${destRows}</div>
     <div class="doc-chk-list">${chkRow(v.rimaneCantiere, 'Rimane in cantiere a disposizione degli Enti di Vigilanza (in formato digitale)')}</div>
     ${docFooter(nextPage(), totalPages)}
@@ -2735,12 +2735,6 @@ function renumberDocPages(){
     const r = p.querySelector('.doc-footer .r');
     if(r) r.textContent = `Pagina ${i+1} di ${total}`;
   });
-  /* la dicitura "composto da N pagine" viene scritta con una stima statica (N imprese × 3 pagine)
-     prima che le pagine osservanze/prescrizioni troppo lunghe vengano spezzate qui sopra in pagine
-     fisiche aggiuntive: va risincronizzata con il conteggio reale, altrimenti resta disallineata dal
-     "Pagina X di Y" nel footer (es. "composto da 6 pagine" quando in realtà sono 8) */
-  const totalPagesEl = document.querySelector('#docview [data-total-pages]');
-  if(totalPagesEl) totalPagesEl.textContent = total;
 }
 /* mostra #docview fuori schermo (per poterlo misurare/catturare), spezza le pagine osservanze troppo
    lunghe in max 3 pagine fisiche e rinumera tutte le pagine di conseguenza */
@@ -2777,21 +2771,9 @@ async function downloadPDF(){
     const pdf = new jsPDF('p','pt','a4');
     const pageW = pdf.internal.pageSize.getWidth();
     const pageH = pdf.internal.pageSize.getHeight();
-    if(document.fonts && document.fonts.ready) await document.fonts.ready;
     for(let i=0;i<pages.length;i++){
-      const captureOpts = {scale:2, useCORS:true, backgroundColor:'#ffffff',
-        windowWidth:DOC_CAPTURE_WIDTH, windowHeight:pages[i].offsetHeight};
-      let canvas;
-      try{
-        /* foreignObjectRendering lets the browser draw the page itself (via SVG <foreignObject>)
-           instead of html2canvas manually re-measuring/re-drawing every glyph — the manual fallback
-           is what caused text to come out a different size on Safari/WebKit than on Chrome, since
-           canvas.measureText() metrics for the system font stack differ between rendering engines. */
-        canvas = await html2canvas(pages[i], {...captureOpts, foreignObjectRendering:true});
-      }catch(e){
-        console.warn('foreignObjectRendering failed, falling back', e);
-        canvas = await html2canvas(pages[i], captureOpts);
-      }
+      const canvas = await html2canvas(pages[i], {scale:2, useCORS:true, backgroundColor:'#ffffff',
+        windowWidth:DOC_CAPTURE_WIDTH, windowHeight:pages[i].offsetHeight});
       const imgData = canvas.toDataURL('image/jpeg',0.92);
       const imgW = pageW;
       const imgH = Math.min(canvas.height * imgW / canvas.width, pageH);
