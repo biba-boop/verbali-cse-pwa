@@ -46,7 +46,8 @@
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-    -webkit-tap-highlight-color:transparent;}
+    -webkit-tap-highlight-color:transparent;
+    -webkit-text-size-adjust:100%;text-size-adjust:100%;}
   #app{max-width:720px;margin:0 auto;min-height:calc(100vh - var(--hdr-h, 68px));min-height:calc(100dvh - var(--hdr-h, 68px));background:var(--bg);
     padding-bottom:calc(90px + env(safe-area-inset-bottom));}
 
@@ -311,6 +312,7 @@
      bottom of every printed/exported page regardless of how much content precedes it. */
   .doc-page{background:#fff;max-width:794px;min-height:1123px;margin:0 auto 18px;padding:96px 75px 16px 61px;
     border:1px solid var(--line);border-radius:6px;font-size:12px;line-height:1.5;color:#111;position:relative;
+    -webkit-text-size-adjust:100%;text-size-adjust:100%;
     display:flex;flex-direction:column;}
   /* logo pulled toward the physical top-left corner of the sheet on every page (same position as
      page 1), bleeding past the body margin — matches the negative anchor offsets measured in the source docx */
@@ -2793,7 +2795,7 @@ function buildWordHTML(v){
   const NAVY=DOC_NAVY, LINE='#d7dee6', BLUEBG='#eaf3fb';
   const pageStyle='mso-page-break-before:always;';
   const box = () => `border:1px solid #000;padding:10px 12px;margin-bottom:10px;`;
-  const bar = (bg=NAVY) => `background:${bg};color:#fff;font-weight:bold;padding:7px 12px;margin:12px 0 10px;font-family:Arial,sans-serif;font-size:12.5px;`;
+  const bar = (bg=NAVY) => `background:${bg};color:#fff;font-weight:bold;padding:7px 12px;margin:12px 0 10px;font-family:Arial,sans-serif;font-size:15px;`;
   const u = () => `border-bottom:1px solid #000;padding:0 4px;font-weight:bold;color:${NAVY};`;
   const totalPages = v.osservanze.length + 3;
   /* logo at native, unscaled size (208x88px) on every page, matching the source docx;
@@ -2821,9 +2823,9 @@ function buildWordHTML(v){
   const page1 = `<div style="font-family:Arial,sans-serif;font-size:12px;">
     ${logoImg()}
     <div style="text-align:center;margin-top:50px;">
-      <div style="color:${COVER_BLUE};font-family:${COVER_FONT};font-weight:bold;font-size:14pt;">Allegato ${esc(DOC_ALLEGATO_NUM)}</div>
-      <div style="color:${COVER_BLUE};font-family:${COVER_FONT};font-weight:bold;font-size:14pt;text-transform:uppercase;margin:8px auto 22px;max-width:480px;line-height:1.4;">VERBALE VISITA IN CANTIERE DEL COORDINATORE PER L'ESECUZIONE DEI LAVORI</div>
-      <div style="display:inline-block;border:1px solid ${COVER_BLUE};padding:10px 18px;color:${COVER_BLUE};font-family:${COVER_FONT};font-weight:bold;font-size:12.5px;">${esc([v.tipologiaLavoro, cantiereCoverLabel(v)].filter(Boolean).join(' ').toUpperCase())}</div>
+      <div style="color:${COVER_BLUE};font-family:${COVER_FONT};font-weight:bold;font-size:15px;">Allegato ${esc(DOC_ALLEGATO_NUM)}</div>
+      <div style="color:${COVER_BLUE};font-family:${COVER_FONT};font-weight:bold;font-size:15px;text-transform:uppercase;margin:8px auto 22px;max-width:480px;line-height:1.4;">VERBALE VISITA IN CANTIERE DEL COORDINATORE PER L'ESECUZIONE DEI LAVORI</div>
+      <div style="display:inline-block;border:1px solid ${COVER_BLUE};padding:10px 18px;color:${COVER_BLUE};font-family:${COVER_FONT};font-weight:bold;font-size:15px;">${esc([v.tipologiaLavoro, cantiereCoverLabel(v)].filter(Boolean).join(' ').toUpperCase())}</div>
     </div>
   </div>`;
 
@@ -2834,7 +2836,7 @@ function buildWordHTML(v){
   /* foto fasi di lavoro: 4cm x 5,33cm fisse, 3 per riga (righe nuove ogni 3 foto — almeno 6 foto = 2 righe) */
   const fasiFotoHtml = (() => {
     if(!v.fotoFasi.length) return '';
-    const cellHtml = p => `<td style="width:5.33cm;padding:4px;vertical-align:top;"><img src="${p.img}" style="width:5.33cm;height:4cm;object-fit:cover;"><br><span style="font-size:11px;color:#5b6b7c;">${esc(p.caption)}</span></td>`;
+    const cellHtml = p => `<td style="width:5.33cm;padding:4px;vertical-align:top;"><img src="${p.img}" style="width:5.33cm;height:4cm;object-fit:cover;"><br><span style="font-size:12px;color:#5b6b7c;">${esc(p.caption)}</span></td>`;
     let rows = '';
     for(let i=0;i<v.fotoFasi.length;i+=3){
       rows += `<tr>${v.fotoFasi.slice(i,i+3).map(cellHtml).join('')}</tr>`;
@@ -2845,7 +2847,7 @@ function buildWordHTML(v){
   const page2 = `<div style="${pageStyle}font-family:Arial,sans-serif;font-size:12px;">
     ${logoImg()}
     <table width="100%" style="border:1px solid #000;border-collapse:collapse;margin-bottom:12px;"><tr>
-      <td style="background:${NAVY};color:#fff;font-weight:800;font-style:italic;font-size:16px;padding:10px 20px;white-space:nowrap;">VISITA</td>
+      <td style="background:${NAVY};color:#fff;font-weight:800;font-style:italic;font-size:15px;padding:10px 20px;white-space:nowrap;">VISITA</td>
       <td style="padding:10px 14px;font-size:12px;">
         ${chkInline(true,'del')} <span style="${u()}">${esc(dD||'—')}</span> / <span style="${u()}">${esc(dM||'—')}</span> / <span style="${u()}">${esc(dY||'—')}</span>
         &nbsp;&nbsp;<b>n°</b> <span style="${u()}">${esc(String(v.numero))}</span> / <span style="${u()}">${esc(String(v.anno))}</span>
@@ -2853,7 +2855,7 @@ function buildWordHTML(v){
     </tr></table>
     <div style="font-size:12px;margin-bottom:10px;border:1px solid #000;padding:8px 10px;"><b>Cantiere di:</b> <span style="${u()}">${esc(cantiereCittaProv(v))}</span> &nbsp;&nbsp; <b>Sito in:</b> <span style="${u()}">${esc(v.sito)}</span></div>
     <table width="100%" style="border-collapse:collapse;border:1px solid #000;margin-bottom:6px;">
-      <tr><td colspan="3" style="background:${NAVY};color:#fff;font-weight:bold;padding:3px 10px;font-size:11px;">ATTIVITA'</td></tr>
+      <tr><td colspan="3" style="background:${NAVY};color:#fff;font-weight:bold;padding:3px 10px;font-size:15px;">ATTIVITA'</td></tr>
       <tr><td style="border:1px solid #000;padding:1.5px 9px;font-size:12px;width:70%;">Arrivo in cantiere ed inizio sopralluogo</td><td style="border:1px solid #000;padding:1.5px 9px;font-size:12px;text-align:center;">h</td><td style="border:1px solid #000;padding:1.5px 9px;font-size:12px;background:${BLUEBG};color:${NAVY};font-weight:bold;text-align:center;">${v.oraArrivoCantiere||'—'}</td></tr>
       <tr><td style="border:1px solid #000;padding:1.5px 9px;font-size:12px;">Fine sopralluogo e partenza per la sede aziendale</td><td style="border:1px solid #000;padding:1.5px 9px;font-size:12px;text-align:center;">h</td><td style="border:1px solid #000;padding:1.5px 9px;font-size:12px;background:${BLUEBG};color:${NAVY};font-weight:bold;text-align:center;">${v.oraFineSopralluogo||'—'}</td></tr>
       <tr><td style="border:1px solid #000;padding:1.5px 9px;font-size:12px;">Arrivo in sede aziendale</td><td style="border:1px solid #000;padding:1.5px 9px;font-size:12px;text-align:center;">h</td><td style="border:1px solid #000;padding:1.5px 9px;font-size:12px;background:${BLUEBG};color:${NAVY};font-weight:bold;text-align:center;">${v.oraArrivoSede||'—'}</td></tr>
@@ -2880,7 +2882,7 @@ function buildWordHTML(v){
     const daAggHtml = phraseHtml(o.selFrasi, DB.frasi.filter(f=>f.categoria==='daAggiungere'));
     const noteSpecHtml = phraseHtml(o.selFrasi, DB.frasi.filter(f=>f.categoria==='noteSpecifiche'));
     const prescrHtml = phraseHtml(o.selPrescrizioni, DB.frasi.filter(f=>f.categoria==='prescrizioni'));
-    const fotoCellHtml = p => `<td style="width:5.33cm;padding:4px;vertical-align:top;"><img src="${p.img}" style="width:5.33cm;height:4cm;object-fit:cover;"><br><span style="font-size:11px;color:#5b6b7c;">${esc(p.caption)}</span></td>`;
+    const fotoCellHtml = p => `<td style="width:5.33cm;padding:4px;vertical-align:top;"><img src="${p.img}" style="width:5.33cm;height:4cm;object-fit:cover;"><br><span style="font-size:12px;color:#5b6b7c;">${esc(p.caption)}</span></td>`;
     let fotoHtml = '';
     if(o.foto.length){
       let fotoRows = '';
@@ -2918,7 +2920,7 @@ function buildWordHTML(v){
   const photoTableWord = (list) => (list&&list.length) ? (()=>{
     let rows = '';
     for(let i=0;i<list.length;i+=3){
-      rows += `<tr>${list.slice(i,i+3).map(p=>`<td style="width:5.33cm;padding:4px;vertical-align:top;"><img src="${p.img}" style="width:5.33cm;height:4cm;object-fit:cover;"><br><span style="font-size:11px;color:#5b6b7c;">${esc(p.caption)}</span></td>`).join('')}</tr>`;
+      rows += `<tr>${list.slice(i,i+3).map(p=>`<td style="width:5.33cm;padding:4px;vertical-align:top;"><img src="${p.img}" style="width:5.33cm;height:4cm;object-fit:cover;"><br><span style="font-size:12px;color:#5b6b7c;">${esc(p.caption)}</span></td>`).join('')}</tr>`;
     }
     return `<table style="border-collapse:collapse;margin:8px 0;">${rows}</table>`;
   })() : '';
@@ -2928,10 +2930,10 @@ function buildWordHTML(v){
   const invioHtml = chkInline(v.modalitaInvio.email,'e-mail') + chkInline(v.modalitaInvio.fax,'via fax') + chkInline(v.modalitaInvio.brevimano,'via WhatsApp / app');
 
   const sigLine = (role,name,img)=>`<table width="100%" style="margin-top:22px;"><tr><td align="right">
-    <span style="font-size:10.5px;color:#333;">${esc(role)}</span><br>
+    <span style="font-size:12px;color:#333;">${esc(role)}</span><br>
     ${img?`<img src="${img}" style="max-height:50px;max-width:220px;display:block;margin:4px 0 -6px auto;"><br>`:''}
     <span style="display:inline-block;min-width:220px;border-bottom:1px solid #000;height:24px;"></span><br>
-    <span style="font-size:11.5px;font-weight:bold;color:${NAVY};">${esc(name)||'&nbsp;'}</span></td></tr></table>`;
+    <span style="font-size:12px;font-weight:bold;color:${NAVY};">${esc(name)||'&nbsp;'}</span></td></tr></table>`;
   let firme = sigLine('Il coordinatore della sicurezza in fase di esecuzione', v.cse, v.firmaCSEImg);
   if(v.assistenteCSE) firme += sigLine('Assistente CSE', v.assistenteCSE, v.assistenteCSEImg);
   v.impreseCoinvolte.forEach(i=> firme += sigLine('Preposto — '+i.nome, i.preposto, i.firmaPrepostoImg));
