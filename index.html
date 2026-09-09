@@ -19,9 +19,9 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
   :root{
-    --navy:#1c3a5e;
-    --navy-dark:#12283f;
-    --navy-pale:#eef2f7;
+    --navy:#008c15;
+    --navy-dark:#005e0e;
+    --navy-pale:#e6f5e8;
     --green:#3a7d52;
     --green-bg:#e9f5ec;
     --blue:#2f6fa8;
@@ -50,10 +50,10 @@
     display:flex;align-items:center;gap:8px;}
   .brand-spacer{flex:0 0 0;}
   .brand-logo-wrap{flex:1;min-width:0;display:flex;justify-content:flex-start;}
-  .brand-header img{height:29.6px;width:auto;display:block;}
+  .brand-header img{height:34.04px;width:auto;display:block;}
   .brand-header.centered .brand-spacer{flex:0 0 112px;}
   .brand-header.centered .brand-logo-wrap{justify-content:center;}
-  .brand-header.centered img{height:41.4px;}
+  .brand-header.centered img{height:47.7px;}
   .profile-badge{flex:0 0 112px;width:112px;overflow:hidden;display:flex;visibility:hidden;
     align-items:center;gap:5px;background:var(--bg);
     border:1px solid var(--line);border-radius:999px;padding:3px 11px 3px 3px;font-size:10.5px;
@@ -146,7 +146,12 @@
   .phrase-cat.daAggiungere{background:var(--blue-bg);border-left:4px solid var(--blue);}
   .phrase-cat.noteSpecifiche{background:var(--red-bg);border-left:4px solid var(--red);}
   .phrase-cat.prescrizioni{background:var(--amber-bg);border-left:4px solid var(--amber);}
-  .phrase-cat .cat-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;}
+  .phrase-cat .cat-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;
+    cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:8px;}
+  .phrase-cat .cat-title::-webkit-details-marker{display:none;}
+  .phrase-cat .cat-title::after{content:'▾';font-size:10px;flex-shrink:0;transition:transform .15s;}
+  .phrase-cat:not([open]) .cat-title{margin-bottom:0;}
+  .phrase-cat:not([open]) .cat-title::after{transform:rotate(-90deg);}
   .phrase-cat.standard .cat-title{color:var(--green);}
   .phrase-cat.daAggiungere .cat-title{color:var(--blue);}
   .phrase-cat.noteSpecifiche .cat-title{color:var(--red);}
@@ -176,8 +181,13 @@
     padding:22px 10px;text-align:center;font-size:13px;cursor:pointer;}
 
   .sig-pad-wrap{margin:8px 0 16px;}
+  .sig-canvas-box{position:relative;}
   .sig-canvas{width:100%;height:140px;border:1px dashed var(--line);border-radius:8px;background:#fff;
     touch-action:none;display:block;cursor:crosshair;}
+  .sig-canvas-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    text-align:center;padding:10px;font-size:13px;font-weight:600;color:var(--muted);
+    background:rgba(255,255,255,.82);border:1px dashed var(--line);border-radius:8px;
+    cursor:pointer;touch-action:pan-y;}
   .sig-preview{border:1px solid var(--line);border-radius:8px;background:#fff;padding:8px;margin-bottom:6px;
     display:flex;justify-content:center;}
   .sig-preview img{max-width:220px;max-height:90px;display:block;}
@@ -220,6 +230,38 @@
   .switch .knob{position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;
     transition:.15s;box-shadow:0 1px 3px rgba(0,0,0,.3);}
   .switch input:checked ~ .knob{transform:translateX(18px);}
+
+  /* ---- schermata "Aggiornamento in corso" (modalità aggiornamento) ---- */
+  .update-screen{min-height:100vh;min-height:100dvh;display:flex;align-items:center;justify-content:center;
+    padding:32px 20px calc(32px + env(safe-area-inset-bottom));background:var(--bg);}
+  .update-card{width:100%;max-width:360px;text-align:center;display:flex;flex-direction:column;align-items:center;}
+  .update-logo{height:40px;width:auto;margin-bottom:18px;}
+  .update-scene{width:100%;display:flex;align-items:center;justify-content:center;margin-bottom:8px;}
+  .update-card h1{font-size:21px;line-height:1.25;color:var(--ink);margin:6px 0 8px;}
+  .update-sub{font-size:13.5px;line-height:1.5;color:var(--muted);margin:0 0 20px;}
+  .update-progress-track{position:relative;width:100%;height:10px;border-radius:6px;background:var(--navy-pale);
+    overflow:hidden;border:1px solid var(--line);}
+  .update-progress-fill{position:absolute;inset:0;width:38%;border-radius:6px;
+    background:repeating-linear-gradient(-45deg, var(--navy) 0px, var(--navy) 9px, var(--ink) 9px, var(--ink) 18px);
+    background-size:200% 100%;animation:updFillgrow 4.2s ease-in-out infinite, updStripes 1.1s linear infinite;}
+  @keyframes updFillgrow{0%{width:12%;}50%{width:78%;}100%{width:12%;}}
+  @keyframes updStripes{0%{background-position:0 0;}100%{background-position:-36px 0;}}
+  .update-progress-labels{display:flex;justify-content:space-between;margin-top:8px;font-size:12px;color:var(--muted);}
+  .update-progress-labels .b{color:var(--ink);font-weight:600;}
+  .update-note{font-size:12px;color:var(--muted);line-height:1.5;margin:0 0 18px;}
+  .update-note strong{color:var(--ink);font-weight:600;}
+  .update-foot{margin-top:14px;font-size:11px;color:var(--muted);}
+  .update-foot span{color:var(--navy);font-weight:600;}
+  .upd-crane-arm{transform-origin:138px 46px;animation:updSway 5.5s ease-in-out infinite;}
+  @keyframes updSway{0%,100%{transform:rotate(0deg);}50%{transform:rotate(-4.5deg);}}
+  .upd-hook{transform-origin:92px 46px;animation:updSwayhook 5.5s ease-in-out infinite;}
+  @keyframes updSwayhook{0%,100%{transform:rotate(0deg) translateY(0px);}50%{transform:rotate(-4.5deg) translateY(2px);}}
+  .upd-block{animation:updBlockmove 4.2s ease-in-out infinite;}
+  @keyframes updBlockmove{0%{transform:translateY(0px);opacity:1;}40%{transform:translateY(46px);opacity:1;}
+    55%{transform:translateY(46px);opacity:1;}95%{transform:translateY(46px);opacity:0;}
+    96%{transform:translateY(0px);opacity:0;}100%{transform:translateY(0px);opacity:1;}}
+  .upd-fill-rect{animation:updRisefill 4.2s ease-in-out infinite;}
+  @keyframes updRisefill{0%{height:14px;y:150px;}50%{height:118px;y:46px;}100%{height:14px;y:150px;}}
 
   .toast{position:fixed;bottom:calc(90px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);background:var(--navy-dark);
     color:#fff;padding:10px 18px;border-radius:20px;font-size:13px;z-index:100;box-shadow:0 4px 14px rgba(0,0,0,.25);
@@ -363,7 +405,13 @@
    to in-memory only as a last resort so the app never crashes. */
 const KEYS = {cantieri:'cantieri',imprese:'imprese',personale:'personale',frasi:'frasi',
               destinatari:'destinatari', index:'verbali-index', settings:'settings', fasiLavoro:'fasiLavoro',
-              fasiLavoroLibVersion:'fasiLavoroLibVersion'};
+              fasiLavoroLibVersion:'fasiLavoroLibVersion', maintenanceMode:'maintenance-mode',
+              notifyWhenReady:'notify-when-ready'};
+
+/* Password di default dell'area amministrazione nascosta (si raggiunge toccando 6 volte il logo
+   in alto). Usata solo finché nelle impostazioni non ne viene salvata una diversa (cambiabile dalla
+   sezione admin stessa). Vedi anche il blocco MODALITÀ AGGIORNAMENTO più sotto (richiesta 09/09/2026). */
+const DEFAULT_ADMIN_PASSWORD = 'SOGLIOLINA';
 
 const IDB_NAME = 'verbali-cse-db';
 const IDB_VERSION = 1;
@@ -455,8 +503,41 @@ let IMPORT_PERSONALE = null; // {impresaId, raw, rows:null|Array<{nome,cognome,m
 let PERSONALE_FILTRI = {search:'', impresaId:'', mansione:''}; // sezione "Personale": ricerca + filtri per impresa/mansione
 let WIZ_PRESENTI_FILTRI = {search:''}; // passaggio "Presenti" del wizard: ricerca nominativi
 let IMPORT_DATI_ARCHIVIO = null; // {raw, parsed:null|object, error:null|string} — trasferimento cantieri/imprese/personale tra dispositivi
+/* Stato aperto/chiuso dei riquadri "a tendina" (Note/Osservanze/Note specifiche/Prescrizioni, sia nel
+   passaggio "Osservanze" del wizard sia nella Libreria osservanze): chiusi di default all'apertura
+   dell'app (richiesta 09/09/2026), ma lo stato scelto dall'utente resta invariato tra un render() e
+   l'altro (es. dopo aver spuntato "seleziona tutte", che ridisegna la pagina) invece di richiudersi
+   ogni volta — altrimenti basterebbe una qualunque interazione per richiudere un riquadro appena aperto.
+   Chiave = categoria ('standard'|'daAggiungere'|'noteSpecifiche'|'prescrizioni'); assente/false = chiuso. */
+let PHRASE_CAT_OPEN = {};
+/* Stato aperto/chiuso dei riquadri "a tendina" per impresa nel passaggio "Presenti" del wizard
+   (uno per ogni impresa coinvolta, con l'elenco degli operai/dipendenti): chiusi di default
+   all'apertura dell'app, stesso motivo e stesso meccanismo di PHRASE_CAT_OPEN qui sopra — evita che
+   un qualunque render() (es. dopo "aggiungi un altro presente") richiuda un riquadro che l'utente
+   aveva aperto. Chiave = id impresa; assente/false = chiuso (richiesta 09/09/2026, commento
+   sull'Artifact). */
+let PERS_GROUP_OPEN = {};
 let ROUTE = {name:'accesso'};
 let toastTimer=null;
+/* ======================= AREA ADMIN NASCOSTA / MODALITÀ AGGIORNAMENTO =======================
+   Sezione riservata raggiungibile toccando 6 volte di fila il logo GDG STUDIO in alto (richiesta
+   09/09/2026). ADMIN_UNLOCKED vale solo per la sessione corrente (si azzera ricaricando la pagina):
+   non è un vero sistema di sicurezza server-side (l'app è un file statico senza server), ma un
+   accesso protetto da password pensato per tenere questa sezione fuori dalla vista degli utenti
+   normali, non per resistere a un utente tecnico che ispeziona il codice. MAINTENANCE_MODE, quando
+   attivo, mostra a tutti (tranne all'area admin stessa) la schermata "Aggiornamento in corso" al
+   posto dell'app: viene sincronizzato via CLOUD_DB quando disponibile (versione pubblicata
+   dell'app), così l'attivazione è visibile in tempo reale su tutti i dispositivi; nel file HTML
+   scaricato, senza CLOUD_DB, resta invece un interruttore solo-locale (vedi initMaintenanceSync). */
+let ADMIN_UNLOCKED = false;
+let MAINTENANCE_MODE = false;
+/* "Avvisami quando è pronto" (pulsante nella schermata di aggiornamento): quando true, questo
+   dispositivo mostrerà una notifica del browser non appena la modalità aggiornamento passerà da
+   attiva a disattiva. NON è una vera notifica push lato server (richiederebbe un backend che
+   questa app statica non ha): funziona solo finché la pagina resta caricata in questo browser,
+   anche in background/minimizzata — non se il browser o l'app viene chiuso del tutto (vedi
+   maybeNotifyMaintenanceOver più sotto). */
+let NOTIFY_ON_MAINT_OFF = false;
 
 function toast(msg){
   const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show');
@@ -655,6 +736,8 @@ async function boot(){
     DB.settings.cseAccounts.push(DB.settings.cseDefault);
   }
   DB.verbaliIndex = await sget(KEYS.index, []);
+  MAINTENANCE_MODE = await sget(KEYS.maintenanceMode, false);
+  NOTIFY_ON_MAINT_OFF = await sget(KEYS.notifyWhenReady, false);
   render();
   initCloudSync();
 }
@@ -725,7 +808,56 @@ async function initCloudSync(){
       snap => { CLOUD_VERBALI = snap.docs.map(d=>({id:d.id, ...d.data()})); if(ROUTE.name==='archivio') render(); },
       err => { console.error('sincronizzazione archivio verbali non riuscita', err); }
     );
+    // Modalità aggiornamento: sincronizzata tra tutti i dispositivi che usano il link pubblicato
+    // dell'app, così attivandola dall'area admin di un dispositivo compare subito su tutti gli altri.
+    CLOUD_DB.collection('config').doc('maintenance').onSnapshot(
+      doc => {
+        const data = doc && typeof doc.data === 'function' ? doc.data() : null;
+        const active = !!(data && data.attiva);
+        if(active !== MAINTENANCE_MODE){
+          const wasActive = MAINTENANCE_MODE;
+          MAINTENANCE_MODE = active;
+          sset(KEYS.maintenanceMode, active);
+          if(wasActive && !active) maybeNotifyMaintenanceOver();
+          render();
+        }
+      },
+      err => { console.error('sincronizzazione modalità aggiornamento non riuscita', err); }
+    );
   }catch(e){ console.error(e); }
+}
+/* Attiva/disattiva la modalità aggiornamento dall'area admin. Salva sempre una copia locale (così
+   l'interruttore resta coerente anche offline o nel file HTML scaricato, dove non esiste un CLOUD_DB
+   condiviso), e in più, quando disponibile, la sincronizza su CLOUD_DB perché l'effetto sia visibile
+   in tempo reale su tutti i dispositivi collegati alla versione pubblicata dell'app. */
+async function setMaintenanceMode(active){
+  const wasActive = MAINTENANCE_MODE;
+  MAINTENANCE_MODE = active;
+  await sset(KEYS.maintenanceMode, active);
+  try{
+    if(CLOUD_DB) await CLOUD_DB.collection('config').doc('maintenance').set({attiva:active, aggiornatoIl:new Date().toISOString()});
+  }catch(e){ console.error('impossibile sincronizzare la modalità aggiornamento su tutti i dispositivi (resta comunque attiva su questo)', e); }
+  if(wasActive && !active) maybeNotifyMaintenanceOver();
+  render();
+}
+/* Mostra la notifica "Aggiornamento completato" su questo dispositivo, se l'utente l'aveva richiesta
+   toccando "Avvisami quando è pronto" nella schermata di aggiornamento. Consuma la richiesta (una
+   tantum): va ritoccato il pulsante per essere avvisati di un eventuale aggiornamento successivo.
+   Richiede il permesso "Notifiche" del browser, già concesso in precedenza (vedi il gestore del
+   pulsante in attachHandlers()): se il permesso non c'è più (es. revocato dall'utente nel frattempo)
+   la notifica viene semplicemente saltata, senza errori per l'utente. */
+function maybeNotifyMaintenanceOver(){
+  if(!NOTIFY_ON_MAINT_OFF) return;
+  NOTIFY_ON_MAINT_OFF = false;
+  sset(KEYS.notifyWhenReady, false);
+  try{
+    if(typeof Notification !== 'function' || Notification.permission !== 'granted') return;
+    const logoImg = document.querySelector('.brand-logo-wrap img');
+    new Notification('Aggiornamento completato', {
+      body: 'L\'app Verbali CSE è di nuovo disponibile.',
+      icon: logoImg ? logoImg.src : undefined
+    });
+  }catch(e){ console.error('impossibile mostrare la notifica di fine aggiornamento', e); }
 }
 async function cloudSyncVerbaleIndice(entry, v){
   try{
@@ -783,8 +915,19 @@ function go(route){ ROUTE = route; window.scrollTo(0,0); render(); }
 function render(){
   const app=document.getElementById('app');
   let html='';
+  // Modalità aggiornamento attiva: chiunque non sia già nell'area admin vede la schermata di
+  // aggiornamento al posto dell'app normale (accesso all'area admin sempre possibile toccando 6
+  // volte il logo, indipendentemente da questa modalità — vedi listener vicino a boot()).
+  if(MAINTENANCE_MODE && ROUTE.name!=='admin-login' && ROUTE.name!=='admin'){
+    app.innerHTML = viewAggiornamento();
+    attachHandlers();
+    updateProfileBadge();
+    return;
+  }
   switch(ROUTE.name){
     case 'accesso': html=viewAccesso(); break;
+    case 'admin-login': html=viewAdminLogin(); break;
+    case 'admin': html = ADMIN_UNLOCKED ? viewAdmin() : viewAdminLogin(); break;
     case 'home': html=viewHome(); break;
     case 'cantieri': html=viewCantieri(); break;
     case 'cantiere-edit': html=viewCantiereEdit(ROUTE.id); break;
@@ -1185,14 +1328,14 @@ function viewFrasi(){
         <button class="del" data-del-frase="${f.id}">✕</button>
       </div>`).join('') || `<div class="hint">Nessuna frase in questa categoria.</div>`;
     return `
-      <div class="phrase-cat ${cat}">
-        <div class="cat-title">${CAT_LABELS[cat]}</div>
+      <details class="phrase-cat ${cat}" ${PHRASE_CAT_OPEN[cat]?'open':''}>
+        <summary class="cat-title">${CAT_LABELS[cat]}</summary>
         ${rows}
         <div style="margin-top:8px;">
           <textarea id="new-${cat}" placeholder="Aggiungi una nuova frase…" style="min-height:44px;"></textarea>
           <button class="btn small secondary" style="margin-top:6px;" data-add-frase="${cat}">＋ Aggiungi a questa categoria</button>
         </div>
-      </div>`;
+      </details>`;
   }).join('');
   return topWrap('Libreria osservanze','Le frasi selezionabili durante la compilazione del verbale', `
     <section class="block">${blocks}</section>
@@ -1268,6 +1411,112 @@ function viewProfilo(){
       <button class="btn danger" data-logout="1">Esci (logout)</button>
     </div>
   `);
+}
+
+/* ======================= AREA ADMIN NASCOSTA ======================= */
+function viewAdminLogin(){
+  return topWrap('Area amministrazione', 'Accesso riservato', `
+    <section class="block">
+      <p class="hint" style="margin-top:0;">Sezione nascosta, non collegata ai menu dell'app: ci sei arrivato toccando ripetutamente il logo in alto.</p>
+      <label>Password amministratore</label>
+      <input type="password" id="f-admin-pwd" placeholder="Password" autocomplete="off">
+      <div class="hint" id="admin-pwd-err" style="color:var(--red);min-height:16px;"></div>
+      <div class="btn-row">
+        <button class="btn secondary" data-go="home">Annulla</button>
+        <button class="btn" data-admin-login="1">Entra</button>
+      </div>
+    </section>
+  `);
+}
+
+function viewAdmin(){
+  return topWrap('Area amministrazione', 'Sezione riservata, non visibile agli utenti dell\'app', `
+    <section class="block">
+      <div class="toggle-row">
+        <div><b>Modalità aggiornamento</b>
+          <div class="hint">Quando è attiva, chiunque apra l'app (a parte questa sezione admin) vede la schermata "Aggiornamento in corso" al posto dell'app normale.</div>
+        </div>
+        <label class="switch"><input type="checkbox" id="f-maintenance-toggle" ${MAINTENANCE_MODE?'checked':''}><span class="track"></span><span class="knob"></span></label>
+      </div>
+      <div class="hint" style="margin-top:8px;">${CLOUD_DB
+        ? 'Questa app è collegata alla sincronizzazione cloud: attivandola o disattivandola, l\'effetto si vede subito su tutti i dispositivi che usano il link pubblicato.'
+        : 'Nessuna sincronizzazione cloud disponibile in questa vista (per es. nel file HTML scaricato): l\'interruttore vale solo su questo dispositivo/browser.'}</div>
+    </section>
+    <section class="block">
+      <h3>Password amministratore</h3>
+      <div class="hint" style="margin-bottom:8px;">Serve per accedere a questa sezione nascosta (si raggiunge toccando 6 volte il logo in alto). Puoi cambiarla in qualsiasi momento.</div>
+      <label>Nuova password</label>
+      <input type="password" id="f-admin-newpwd" placeholder="Nuova password amministratore" autocomplete="off">
+      <div class="btn-row">
+        <button class="btn" data-save-admin-pwd="1">Salva nuova password</button>
+      </div>
+      <div class="hint" style="margin-top:6px;">La password è salvata solo su questo dispositivo: se la cambi qui, sugli altri dispositivi resterà valida quella precedente (o quella di default) finché non la aggiorni anche lì.</div>
+    </section>
+    <div class="btn-row">
+      <button class="btn secondary" data-admin-logout="1">Esci dall'area admin</button>
+    </div>
+  `);
+}
+
+/* ======================= SCHERMATA "AGGIORNAMENTO IN CORSO" =======================
+   Adattata dal mockup fornito da GDG STUDIO (gdgstudio_update_screen.html): stessa scena SVG
+   animata (gru che costruisce un grattacielo) e barra di avanzamento a righe, ma senza la cornice
+   decorativa "a telefono" del mockup (qui l'app gira nel browser/PWA reale, non in un'anteprima), e
+   con i colori ripresi dalle variabili dell'app (--navy/--navy-dark/--navy-pale, verdi) invece dei
+   valori fissi del mockup originale, così resta coerente con il resto dell'app. */
+function viewAggiornamento(){
+  const logoImg = document.querySelector('.brand-logo-wrap img');
+  const logoSrc = logoImg ? logoImg.src : '';
+  return `
+  <div class="update-screen">
+    <div class="update-card">
+      ${logoSrc?`<img class="update-logo" src="${logoSrc}" alt="GDG STUDIO">`:''}
+      <div class="update-scene">
+        <svg viewBox="0 0 260 210" width="220" height="178">
+          <line x1="20" y1="182" x2="240" y2="182" stroke="var(--ink)" stroke-width="2"/>
+          <rect x="34" y="140" width="26" height="42" fill="none" stroke="var(--ink)" stroke-width="2"/>
+          <rect x="66" y="118" width="26" height="64" fill="none" stroke="var(--ink)" stroke-width="2"/>
+          <rect x="196" y="128" width="26" height="54" fill="none" stroke="var(--ink)" stroke-width="2"/>
+          <g>
+            <rect x="112" y="46" width="48" height="136" fill="none" stroke="var(--ink)" stroke-width="2.5"/>
+            <line x1="112" y1="182" x2="160" y2="46" stroke="var(--navy)" stroke-width="3"/>
+            <clipPath id="upd-bldg-clip"><rect x="113" y="47" width="46" height="134"/></clipPath>
+            <g clip-path="url(#upd-bldg-clip)">
+              <rect class="upd-fill-rect" x="113" y="150" width="46" height="14" fill="var(--navy-pale)"/>
+            </g>
+            <line x1="112" y1="70" x2="160" y2="70" stroke="var(--ink)" stroke-width="1"/>
+            <line x1="112" y1="94" x2="160" y2="94" stroke="var(--ink)" stroke-width="1"/>
+            <line x1="112" y1="118" x2="160" y2="118" stroke="var(--ink)" stroke-width="1"/>
+            <line x1="112" y1="142" x2="160" y2="142" stroke="var(--ink)" stroke-width="1"/>
+            <line x1="112" y1="166" x2="160" y2="166" stroke="var(--ink)" stroke-width="1"/>
+          </g>
+          <line x1="138" y1="182" x2="138" y2="30" stroke="var(--ink)" stroke-width="3"/>
+          <g class="upd-crane-arm">
+            <line x1="138" y1="34" x2="230" y2="46" stroke="var(--ink)" stroke-width="3"/>
+            <line x1="138" y1="34" x2="110" y2="46" stroke="var(--ink)" stroke-width="3"/>
+            <line x1="122" y1="20" x2="150" y2="34" stroke="var(--ink)" stroke-width="2"/>
+            <line x1="122" y1="20" x2="122" y2="34" stroke="var(--ink)" stroke-width="2"/>
+          </g>
+          <g class="upd-hook">
+            <line x1="92" y1="46" x2="92" y2="70" stroke="var(--navy)" stroke-width="1.5"/>
+            <rect class="upd-block" x="82" y="70" width="20" height="16" fill="var(--navy)"/>
+          </g>
+        </svg>
+      </div>
+      <h1>Stiamo aggiornando<br>l'app</h1>
+      <p class="update-sub">Un aggiornamento è in corso per migliorare l'app. Torneremo operativi il prima possibile.</p>
+      <div class="update-progress-track"><div class="update-progress-fill"></div></div>
+      <div class="update-progress-labels"><span>Aggiornamento in corso</span><span class="b">Attendere</span></div>
+      <p class="update-note">Prevista riattivazione entro <strong>poche ore</strong>. I tuoi dati e verbali restano al sicuro.</p>
+      ${NOTIFY_ON_MAINT_OFF
+        ? `<button type="button" class="btn secondary" disabled>✓ Ti avviseremo quando è pronto</button>`
+        : `<button type="button" class="btn secondary" data-notify-ready="1">Avvisami quando è pronto</button>`}
+      <div class="hint" style="margin-top:8px;">${NOTIFY_ON_MAINT_OFF
+        ? 'Riceverai una notifica su questo dispositivo/browser appena l\'aggiornamento sarà completato — tieni questa pagina aperta, anche in background.'
+        : 'Attiva le notifiche del browser per essere avvisato automaticamente quando l\'app tornerà disponibile (serve tenere questa pagina aperta, anche in background: non è una notifica push da app chiusa).'}</div>
+      <div class="update-foot">GDG STUDIO <span>·</span> in aggiornamento</div>
+    </div>
+  </div>`;
 }
 
 /* ======================= DESTINATARI ======================= */
@@ -1553,7 +1802,10 @@ function viewArchivio(){
       <h3>Verbali di altri dispositivi</h3>
       <div class="hint" style="margin-bottom:8px;">Elenco condiviso in tempo reale con tutta l'azienda: si vede chi ha compilato cosa, ma il contenuto completo (foto comprese) resta disponibile solo sul dispositivo che ha creato il verbale.</div>
       ${remoteRows || `<div class="hint">Nessun verbale trovato su altri dispositivi.</div>`}
-    </section>` : '';
+    </section>` : `
+    <section class="block">
+      <div class="hint">ℹ️ Qui comparirebbero anche i verbali creati su altri dispositivi (elenco condiviso con tutta l'azienda), ma solo aprendo il link dell'app fornito da GDG STUDIO — anche installandolo sulla schermata Home dell'iPhone/telefono. Con il file HTML scaricato, invece, questa sincronizzazione non è disponibile e si vedono solo i verbali creati su questo dispositivo.</div>
+    </section>`;
 
   return topWrap('Archivio verbali','', `
     <section class="block">
@@ -1602,7 +1854,9 @@ function viewWizard(step){
   const isLast = idx===STEPS.length-1;
   return `
   <div class="topbar">
-    <button class="back" data-go="home-confirm">‹</button>
+    ${idx>0
+      ? `<button class="back" data-wizard-nav="${STEPS[idx-1]}">‹</button>`
+      : `<button class="back" data-go="home-confirm">‹</button>`}
     <h1>Verbale n° ${v.numero}/${v.anno}<span class="sub">${esc(v.cantiereNome)}</span></h1>
   </div>
   ${stepperHtml(step)}
@@ -1691,7 +1945,7 @@ function wizPresenti(v){
       </div>`;
     }).join('') || `<div class="hint">Nessun dipendente archiviato per questa impresa. Aggiungili dalla sezione Personale.</div>`;
     return `
-    <details class="pers-group" data-impresa-id="${ic.impresaId}" open>
+    <details class="pers-group" data-impresa-id="${ic.impresaId}" ${PERS_GROUP_OPEN[ic.impresaId]?'open':''}>
       <summary>
         <span class="name">${esc(ic.nome)}<span class="cnt">(${persone.length})</span></span>
         <span class="arrow">▶</span>
@@ -1798,7 +2052,7 @@ function wizOsservanze(v){
         <input type="checkbox" data-osserv-select-all="${cat}" ${allSelected?'checked':''}>
         <div class="txt">Seleziona / deseleziona tutte</div>
       </label>` : '';
-    return `<div class="phrase-cat ${cat}"><div class="cat-title">${CAT_LABELS[cat]}</div>${selectAll}${rows}</div>`;
+    return `<details class="phrase-cat ${cat}" ${PHRASE_CAT_OPEN[cat]?'open':''}><summary class="cat-title">${CAT_LABELS[cat]}</summary>${selectAll}${rows}</details>`;
   }
 
   const photos = oss.foto.map((p,idx)=>`
@@ -1945,8 +2199,11 @@ function signatureBlock(key, img){
   }
   return `
   <div class="sig-pad-wrap" data-sig-key="${key}">
-    <canvas class="sig-canvas" data-sig-canvas="${key}" width="600" height="160"></canvas>
-    <div class="hint">Disegna la firma col dito o il mouse nel riquadro sopra, oppure carica una foto/immagine della firma.</div>
+    <div class="sig-canvas-box">
+      <canvas class="sig-canvas" data-sig-canvas="${key}" width="600" height="160"></canvas>
+      <div class="sig-canvas-overlay" data-sig-overlay="${key}">👆 Tocca qui per iniziare a firmare</div>
+    </div>
+    <div class="hint">Tocca il riquadro per attivarlo, poi disegna la firma col dito o il mouse — così puoi scorrere la pagina senza firmare per sbaglio. In alternativa, carica una foto/immagine della firma.</div>
     <div class="btn-row">
       <button class="btn small secondary" type="button" data-sig-erase="${key}">Cancella</button>
       <button class="btn small" type="button" data-sig-save="${key}">Salva firma disegnata</button>
@@ -3078,6 +3335,62 @@ function attachHandlers(){
     go({name:'accesso'});
   });
 
+  // area admin nascosta
+  const adminLoginBtn = app.querySelector('[data-admin-login]');
+  if(adminLoginBtn) adminLoginBtn.addEventListener('click', ()=>{
+    const pwdInput = document.getElementById('f-admin-pwd');
+    const entered = pwdInput ? pwdInput.value : '';
+    const expected = DB.settings.adminPassword || DEFAULT_ADMIN_PASSWORD;
+    if(entered === expected){
+      ADMIN_UNLOCKED = true;
+      go({name:'admin'});
+    } else {
+      const err = document.getElementById('admin-pwd-err');
+      if(err) err.textContent = 'Password errata.';
+    }
+  });
+  const maintenanceToggle = document.getElementById('f-maintenance-toggle');
+  if(maintenanceToggle) maintenanceToggle.addEventListener('change', ()=>{
+    setMaintenanceMode(maintenanceToggle.checked);
+  });
+  const saveAdminPwdBtn = app.querySelector('[data-save-admin-pwd]');
+  if(saveAdminPwdBtn) saveAdminPwdBtn.addEventListener('click', async ()=>{
+    const val = (document.getElementById('f-admin-newpwd').value||'').trim();
+    if(!val){ toast('Inserisci la nuova password'); return; }
+    DB.settings.adminPassword = val;
+    await sset(KEYS.settings, DB.settings);
+    toast('Password amministratore aggiornata');
+    render();
+  });
+  const adminLogoutBtn = app.querySelector('[data-admin-logout]');
+  if(adminLogoutBtn) adminLogoutBtn.addEventListener('click', ()=>{
+    ADMIN_UNLOCKED = false;
+    go({name:'home'});
+  });
+  const notifyReadyBtn = app.querySelector('[data-notify-ready]');
+  if(notifyReadyBtn) notifyReadyBtn.addEventListener('click', async ()=>{
+    if(typeof Notification !== 'function'){
+      toast('Le notifiche non sono supportate su questo dispositivo/browser.');
+      return;
+    }
+    if(Notification.permission === 'denied'){
+      toast('Notifiche bloccate per questa app: abilitale dalle impostazioni del browser per essere avvisato.');
+      return;
+    }
+    let perm = Notification.permission;
+    if(perm !== 'granted'){
+      try{ perm = await Notification.requestPermission(); }catch(e){ perm = 'denied'; }
+    }
+    if(perm === 'granted'){
+      NOTIFY_ON_MAINT_OFF = true;
+      await sset(KEYS.notifyWhenReady, true);
+      toast('Fatto: riceverai una notifica su questo dispositivo appena l\'aggiornamento sarà completato (serve tenere questa pagina aperta, anche in background).');
+      render();
+    } else {
+      toast('Permesso notifiche non concesso: non potremo avvisarti automaticamente.');
+    }
+  });
+
   // archivio
   const fc = document.getElementById('filt-cantiere');
   if(fc) fc.addEventListener('change', ()=>{ ROUTE.filters.cantiere=fc.value; render(); });
@@ -3138,7 +3451,11 @@ function attachHandlers(){
     render();
   }));
 
-  // presenti step
+  // presenti step: ricordo quali riquadri impresa l'utente ha aperto, cosi' un successivo render()
+  // (es. dopo "aggiungi un altro presente") non li richiude da solo (richiesta 09/09/2026).
+  app.querySelectorAll('.pers-group[data-impresa-id]').forEach(el=>{
+    el.addEventListener('toggle', ()=>{ PERS_GROUP_OPEN[el.dataset.impresaId] = el.open; });
+  });
   app.querySelectorAll('[data-presente-check]').forEach(el=>el.addEventListener('change', ()=>{
     const pid = el.dataset.presenteCheck; const arr = CURRENT_VERBALE.presentiPersonale;
     const i = arr.indexOf(pid);
@@ -3193,6 +3510,12 @@ function attachHandlers(){
     persistWizardFields('osservanze');
     ROUTE.osservanzaImpresaId = el.dataset.osservTab; render();
   }));
+  // riquadri "a tendina" Note/Osservanze/Note specifiche/Prescrizioni: ricordo se l'utente li ha aperti
+  // o chiusi, cosi' un successivo render() (es. dopo "seleziona tutte") non li richiude da solo.
+  app.querySelectorAll('.phrase-cat[class]').forEach(el=>{
+    const cat = [...el.classList].find(c=>c in CAT_LABELS);
+    if(cat) el.addEventListener('toggle', ()=>{ PHRASE_CAT_OPEN[cat] = el.open; });
+  });
   app.querySelectorAll('[data-osserv-check]').forEach(el=>el.addEventListener('change', ()=>{
     const active = ROUTE.osservanzaImpresaId || CURRENT_VERBALE.impreseCoinvolte[0].impresaId;
     const oss = CURRENT_VERBALE.osservanze.find(o=>o.impresaId===active);
@@ -3288,11 +3611,21 @@ function attachHandlers(){
     render();
   }));
 
-  // firma grafica — disegno a mano libera (pointer events: dito/mouse/pen) o immagine caricata
+  // firma grafica — disegno a mano libera (pointer events: dito/mouse/pen) o immagine caricata.
+  // Il riquadro resta "spento" (tocco = scorrimento normale della pagina) finché non lo si tocca
+  // esplicitamente sulla scritta "Tocca qui per iniziare a firmare": solo da quel momento in poi
+  // il tocco disegna la firma, per evitare di firmare per sbaglio scorrendo la pagina col dito
+  // proprio sopra il riquadro (richiesta 09/09/2026, commento sull'Artifact).
+  app.querySelectorAll('[data-sig-overlay]').forEach(overlay=>overlay.addEventListener('click', ()=>{
+    const canvas = app.querySelector(`[data-sig-canvas="${overlay.dataset.sigOverlay}"]`);
+    if(canvas) canvas._armed = true;
+    overlay.style.display = 'none';
+  }));
   app.querySelectorAll('[data-sig-canvas]').forEach(canvas=>{
     const ctx = canvas.getContext('2d');
     ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#111';
     canvas._hasDrawing = false;
+    canvas._armed = false;
     let drawing = false, lastX = 0, lastY = 0;
     const posFromEvent = e => {
       const r = canvas.getBoundingClientRect();
@@ -3300,6 +3633,7 @@ function attachHandlers(){
       return { x: (e.clientX - r.left) * sx, y: (e.clientY - r.top) * sy };
     };
     canvas.addEventListener('pointerdown', e => {
+      if(!canvas._armed) return; // riquadro non ancora attivato col tocco sulla scritta: ignora
       drawing = true; canvas.setPointerCapture(e.pointerId);
       const p = posFromEvent(e); lastX = p.x; lastY = p.y;
       e.preventDefault();
@@ -3418,6 +3752,24 @@ function persistWizardFields(step){
 
 const profileBadgeEl = document.getElementById('profile-badge');
 if(profileBadgeEl) profileBadgeEl.addEventListener('click', ()=> go({name:'profilo'}));
+
+/* Accesso nascosto all'area admin: 6 tocchi ravvicinati sul logo (entro 2,5s l'uno dall'altro,
+   altrimenti il conteggio si azzera) aprono la schermata di login dell'area admin (richiesta
+   09/09/2026). Il logo vive nell'intestazione statica (fuori da #app, mai rigenerata da render()),
+   quindi questo listener va registrato una sola volta qui, non in attachHandlers(). */
+let logoTapCount = 0;
+let logoTapResetTimer = null;
+const logoImgEl = document.querySelector('.brand-logo-wrap img');
+if(logoImgEl) logoImgEl.addEventListener('click', ()=>{
+  logoTapCount++;
+  clearTimeout(logoTapResetTimer);
+  logoTapResetTimer = setTimeout(()=>{ logoTapCount = 0; }, 2500);
+  if(logoTapCount >= 6){
+    logoTapCount = 0;
+    clearTimeout(logoTapResetTimer);
+    go({name:'admin-login'});
+  }
+});
 
 /* La barra blu del titolo (.topbar) resta agganciata (sticky) subito sotto la barra bianca fissa
    col logo GDG STUDIO (.brand-header), così resta sempre visibile durante lo scroll. L'offset era
