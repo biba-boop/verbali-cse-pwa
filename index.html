@@ -200,6 +200,18 @@
   .personale-check .lbl{font-size:13px;}
   .personale-check .lbl small{color:var(--muted);display:block;font-size:11px;}
 
+  .pers-group{border:1px solid var(--line);border-radius:8px;margin-bottom:10px;overflow:hidden;background:#fff;}
+  .pers-group summary{list-style:none;cursor:pointer;padding:11px 12px;display:flex;align-items:center;
+    justify-content:space-between;gap:10px;background:var(--navy-pale);}
+  .pers-group summary::-webkit-details-marker{display:none;}
+  .pers-group summary .name{font-size:13px;font-weight:700;color:var(--navy-dark);}
+  .pers-group summary .cnt{font-size:11px;color:var(--muted);font-weight:600;margin-left:4px;}
+  .pers-group summary .arrow{font-size:11px;color:var(--muted);transition:transform .15s;flex-shrink:0;}
+  .pers-group[open] summary .arrow{transform:rotate(90deg);}
+  .pers-group .pers-body{padding:8px 12px 10px;}
+  .pers-group .pers-body .item-row:first-child{border-top:none;}
+  .pers-filtered-hint{padding:6px 0;}
+
   .toggle-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;}
   .switch{position:relative;width:44px;height:26px;flex-shrink:0;}
   .switch input{opacity:0;width:100%;height:100%;position:absolute;margin:0;cursor:pointer;z-index:1;}
@@ -250,12 +262,12 @@
     font-size:12.5px;}
   .doc-bar .sub{font-weight:400;font-style:italic;font-size:10px;}
   .doc-box{border:1px solid #000;padding:10px 12px;margin-bottom:10px;}
-  .doc-box-line{font-size:12.5px;margin-bottom:10px;border:1px solid #000;padding:8px 10px;}
+  .doc-box-line{font-size:12px;margin-bottom:10px;border:1px solid #000;padding:8px 10px;}
   .doc-u{border-bottom:1px solid #000;padding:0 4px;font-weight:600;color:var(--doc-navy);}
   .doc-table{width:100%;border-collapse:collapse;margin-bottom:10px;}
   .doc-table td{border:1px solid var(--line);padding:5px 8px;font-size:12px;vertical-align:top;}
   .doc-cols{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
-  .doc-cols2-plain{display:flex;flex-wrap:wrap;gap:6px 24px;font-size:12.5px;margin-bottom:10px;}
+  .doc-cols2-plain{display:flex;flex-wrap:wrap;gap:6px 24px;font-size:12px;margin-bottom:10px;}
   .doc-photogrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:8px;}
   .doc-photogrid .p img{width:100%;height:90px;object-fit:cover;border:1px solid var(--line);border-radius:3px;}
   .doc-photogrid .p .c{font-size:11px;color:var(--muted);margin-top:3px;line-height:1.3;}
@@ -263,7 +275,7 @@
   .doc-photogrid.fasi-fixed{grid-template-columns:repeat(3, 5.33cm);gap:6px;}
   .doc-photogrid.fasi-fixed .p img{height:4cm;}
   /* osservanze: carattere leggibile, pagina libera di occupare tutto lo spazio necessario */
-  .doc-phrase{font-size:13.5px;line-height:1.45;padding:5px 0;border-top:1px solid #eee;}
+  .doc-phrase{font-size:12px;line-height:1.45;padding:5px 0;border-top:1px solid #eee;}
   .doc-phrase:first-child{border-top:none;}
 
   /* cover page */
@@ -279,13 +291,13 @@
   .doc-visita-wrap{border:1px solid #000;display:flex;margin-bottom:12px;overflow:hidden;}
   .doc-visita-tag{background:var(--doc-navy);color:#fff;font-weight:800;font-style:italic;font-size:16px;
     display:flex;align-items:center;justify-content:center;padding:10px 20px;flex-shrink:0;}
-  .doc-visita-fields{flex:1;display:flex;align-items:center;gap:5px;padding:10px 14px;font-size:12.5px;flex-wrap:wrap;}
+  .doc-visita-fields{flex:1;display:flex;align-items:center;gap:5px;padding:10px 14px;font-size:12px;flex-wrap:wrap;}
 
   /* attivita table (with navy header row + pale-blue fill cells) */
   /* riquadro orari ATTIVITA' ridotto: meno padding e testo più piccolo, per lasciare spazio alle foto sotto */
   .doc-attivita{width:100%;border-collapse:collapse;margin-bottom:6px;border:1px solid #000;}
   .doc-attivita .bar-row td{background:var(--doc-navy);color:#fff;font-weight:700;padding:3px 10px;font-size:11px;border:none;}
-  .doc-attivita td{border:1px solid #000;padding:1.5px 9px;font-size:10px;}
+  .doc-attivita td{border:1px solid #000;padding:1.5px 9px;font-size:12px;}
   .doc-attivita td.h{width:28px;text-align:center;}
   .doc-attivita td.v{background:var(--blue-bg);color:var(--doc-navy);font-weight:700;min-width:50px;text-align:center;}
   .doc-attivita tr.tot td{font-weight:700;}
@@ -348,7 +360,8 @@
    (e.g. some locked-down in-app browsers), and degrades gracefully
    to in-memory only as a last resort so the app never crashes. */
 const KEYS = {cantieri:'cantieri',imprese:'imprese',personale:'personale',frasi:'frasi',
-              destinatari:'destinatari', index:'verbali-index', settings:'settings', fasiLavoro:'fasiLavoro'};
+              destinatari:'destinatari', index:'verbali-index', settings:'settings', fasiLavoro:'fasiLavoro',
+              fasiLavoroLibVersion:'fasiLavoroLibVersion'};
 
 const IDB_NAME = 'verbali-cse-db';
 const IDB_VERSION = 1;
@@ -437,6 +450,8 @@ function esc(s){ return (s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;',
 let DB = { cantieri:[], imprese:[], personale:[], frasi:[], destinatari:[], settings:{}, verbaliIndex:[], fasiLavoro:[] };
 let CURRENT_VERBALE = null;
 let IMPORT_PERSONALE = null; // {impresaId, raw, rows:null|Array<{nome,cognome,mansione}>}
+let PERSONALE_FILTRI = {search:'', impresaId:'', mansione:''}; // sezione "Personale": ricerca + filtri per impresa/mansione
+let WIZ_PRESENTI_FILTRI = {search:''}; // passaggio "Presenti" del wizard: ricerca nominativi
 let IMPORT_DATI_ARCHIVIO = null; // {raw, parsed:null|object, error:null|string} — trasferimento cantieri/imprese/personale tra dispositivi
 let ROUTE = {name:'accesso'};
 let toastTimer=null;
@@ -523,56 +538,55 @@ function provinciaSigla(raw){
   return t.slice(0,2).toUpperCase();
 }
 
-/* Fasi di lavoro / cantieristica, suddivise per categoria (da FASI_DI_LAVORO.docx).
+/* Fasi di lavoro / cantieristica, suddivise per categoria.
    Usate per il menu a tendina categoria → fase sulle foto di "Fasi di lavoro in atto".
    Questo è solo il seed iniziale: la copia effettiva, ampliabile dall'app (Libreria fasi di
-   lavoro), vive in DB.fasiLavoro ed è persistita come le altre librerie (frasi, destinatari…). */
+   lavoro), vive in DB.fasiLavoro ed è persistita come le altre librerie (frasi, destinatari…).
+   FASI_LAVORO_LIB_VERSION: incrementato il 09/09/2026 su richiesta esplicita di sostituzione
+   della libreria — vedi la migrazione one-time in loadAll() che forza l'aggiornamento anche sui
+   dispositivi che avevano già inizializzato DB.fasiLavoro in precedenza. */
+const FASI_LAVORO_LIB_VERSION = 2;
 const SEED_FASI_LAVORO = [
-  { categoria:'Cantieristica – Area di cantiere', voci:[
-    'Cantieristica - area di cantiere segregata con orso grill e rete ad alta visibilità',
-    'Cantieristica - area di deposito segregata con orso grill e rete ad alta visibilità',
-    'Cantieristica - area di deposito segregata e segnalata',
-    'Cantieristica - area di cantiere segnalata mediante cartelli stradali',
-    'Cantieristica - area di cantiere segnalata mediante cartelli stradali zavorrati',
-  ]},
-  { categoria:'Cantieristica – Scavo', voci:[
-    'Cantieristica - armatura scavo posizionata',
-    'Cantieristica - bordo scavo pulito e libero da materiale e attrezzature',
-  ]},
-  { categoria:'Cantieristica – Piastre', voci:[
-    'Cantieristica - posizionamento piastre a garanzia del corretto e sicuro passaggio veicolare',
-    'Cantieristica - posizionate piastre per passaggio pedonale',
-    'Cantieristica - piastre carrabili correttamente posizionate',
-  ]},
-  { categoria:'Cantieristica – Presente', voci:[
-    'Cantieristica – presente cassetta pronto soccorso',
-    'Cantieristica - presente bagno chimico',
-    'Cantieristica – presente impianto semaforico',
-    'Cantieristica - presente estintore',
-    'Cantieristica - presente cerca fughe',
-  ]},
-  { categoria:'Cantieristica – Cartellonistica e segnaletica', voci:[
-    'Cantieristica – cartellonistica di cantiere',
-    'Cantieristica - presente cartellonistica di cantiere completa',
-    'Cantieristica - segnaletica per deviazione',
-    'Cantieristica - segnaletica per passaggio pedonale',
-    'Cantieristica – segnaletica stradale da zavorrare',
-    'Cantieristica – luci di segnalazione notturna posizionate',
-    'Cantieristica - presenti coni di segnalazione',
-    'Cantieristica - presente ordinanza chiusura stradale',
-  ]},
-  { categoria:'Cantieristica – Extra', voci:[
-    'Cantieristica - mezzo d’opera in sosta da segnalare e segregare',
-    'Cantieristica - moviere in gestione del traffico',
-    'Cantieristica – passaggio pedonale garantito',
-  ]},
-  { categoria:'Cantieristica – Cartellini', voci:[
+  { categoria:'🏗️ CANTIERISTICA', voci:[
+    'Area di cantiere segregata con orso grill e rete ad alta visibilità',
+    'Area di deposito segregata con orso grill e rete ad alta visibilità',
+    'Area di deposito segregata e segnalata',
+    'Area di cantiere segnalata mediante cartelli stradali',
+    'Area di cantiere segnalata mediante cartelli stradali zavorrati',
+    'Armatura scavo posizionata',
+    'Bordo scavo pulito e libero da materiale e attrezzature',
+    'Posizionamento piastre a garanzia del corretto e sicuro passaggio veicolare',
+    'Piastre posizionate per passaggio pedonale',
+    'Piastre carrabili correttamente posizionate',
+    'Cartellonistica di cantiere (presente/completa)',
+    'Segnaletica per deviazione',
+    'Segnaletica per passaggio pedonale',
+    'Segnaletica stradale da zavorrare',
+    'Presente ordinanza di chiusura stradale',
+    'Mezzo d’opera in sosta segnalato e segregato',
+    'Moviere in gestione del traffico',
+    'Passaggio pedonale garantito',
     'Cartellini',
   ]},
-  { categoria:'Fase di lavoro', voci:[
-    'Fase di lavoro – realizzazione allaccio',
-    'Fase di lavoro - tappetino ultimato',
-    'Fase di lavoro - tappetino ultimato correttamente',
+  { categoria:'🦺 PRESIDI', voci:[
+    'Presente cassetta di pronto soccorso',
+    'Presente bagno chimico',
+    'Presente impianto semaforico',
+    'Presente estintore',
+    'Presente cerca fughe',
+    'Presenti coni di segnalazione',
+    'Luci di segnalazione notturna posizionate',
+  ]},
+  { categoria:'🔧 FASI DI LAVORO', voci:[
+    'Taglio asfalto',
+    'Scavo',
+    'Posa tubazione',
+    'Posizionamento macchine intercettatrici',
+    'Realizzazione allaccio',
+    'Rinterro',
+    'Ripristino provvisorio',
+    'Fresatura',
+    'Manto d’usura',
   ]},
 ];
 
@@ -624,7 +638,12 @@ async function boot(){
   DB.frasi = await sget(KEYS.frasi, null);
   if(DB.frasi === null){ DB.frasi = SEED_FRASI; await sset(KEYS.frasi, DB.frasi); }
   DB.fasiLavoro = await sget(KEYS.fasiLavoro, null);
-  if(DB.fasiLavoro === null){ DB.fasiLavoro = JSON.parse(JSON.stringify(SEED_FASI_LAVORO)); await sset(KEYS.fasiLavoro, DB.fasiLavoro); }
+  const fasiLavoroLibVersion = await sget(KEYS.fasiLavoroLibVersion, 0);
+  if(DB.fasiLavoro === null || fasiLavoroLibVersion < FASI_LAVORO_LIB_VERSION){
+    DB.fasiLavoro = JSON.parse(JSON.stringify(SEED_FASI_LAVORO));
+    await sset(KEYS.fasiLavoro, DB.fasiLavoro);
+    await sset(KEYS.fasiLavoroLibVersion, FASI_LAVORO_LIB_VERSION);
+  }
   DB.destinatari = await sget(KEYS.destinatari, []);
   DB.settings = await sget(KEYS.settings, {intestazione:'', cseDefault:'Geom. Davide Gioiosano', cseAccounts:['Geom. Davide Gioiosano']});
   if(!Array.isArray(DB.settings.cseAccounts) || DB.settings.cseAccounts.length===0){
@@ -972,25 +991,86 @@ function viewPersonale(){
     return topWrap('Personale','', `<section class="block">${emptyState('👷','Nessuna impresa archiviata','Crea prima almeno un\'impresa: il personale va associato a un\'impresa.')}</section>
       <div class="fab"><button class="btn" data-go="impresa-edit-new">＋ Nuova impresa</button></div>`);
   }
+  const mansioniMap = new Map();
+  DB.personale.forEach(p=>{
+    const m = (p.mansione||'').trim();
+    if(m){ const k = m.toLowerCase(); if(!mansioniMap.has(k)) mansioniMap.set(k, m); }
+  });
+  const mansioniOptions = `<option value="">Tutte le mansioni</option>` + [...mansioniMap.entries()]
+    .sort((a,b)=>a[1].localeCompare(b[1],'it'))
+    .map(([k,label])=>`<option value="${esc(k)}" ${PERSONALE_FILTRI.mansione===k?'selected':''}>${esc(label)}</option>`).join('');
+  const impreseOptions = `<option value="">Tutte le imprese</option>` + DB.imprese
+    .map(i=>`<option value="${i.id}" ${PERSONALE_FILTRI.impresaId===i.id?'selected':''}>${esc(i.nome)}</option>`).join('');
+
   const groups = DB.imprese.map(imp=>{
     const persone = DB.personale.filter(p=>p.impresaId===imp.id);
-    const rows = persone.map(p=>`
-      <div class="item-row">
+    const rows = persone.map(p=>{
+      const searchBlob = `${p.nome} ${p.cognome} ${p.mansione||''} ${p.qualifica||''}`.toLowerCase();
+      const mansioneKey = (p.mansione||'').trim().toLowerCase();
+      return `
+      <div class="item-row" data-pers-search="${esc(searchBlob)}" data-pers-mansione="${esc(mansioneKey)}">
         <div class="main"><div class="t">${esc(p.nome)} ${esc(p.cognome)}</div><div class="s">${esc(p.mansione||'')}${p.qualifica?' · '+esc(p.qualifica):''}</div></div>
         <div class="actions">
           <button class="iconbtn" data-edit-personale="${p.id}">Modifica</button>
           <button class="iconbtn" data-del-personale="${p.id}">🗑</button>
         </div>
-      </div>`).join('') || `<div class="hint">Nessun dipendente per questa impresa.</div>`;
-    return `<section class="block"><div class="item-row" style="border-bottom:none;padding-bottom:6px;">
-      <div class="main"><h3 style="margin:0;">${esc(imp.nome)}</h3></div>
-      <div class="actions"><button class="iconbtn" data-import-personale="${imp.id}">📥 Importa lista</button></div>
-    </div>${rows}</section>`;
+      </div>`;
+    }).join('') || `<div class="hint">Nessun dipendente per questa impresa.</div>`;
+    return `
+    <details class="pers-group" data-impresa-id="${imp.id}">
+      <summary>
+        <span class="name">${esc(imp.nome)}<span class="cnt">(${persone.length})</span></span>
+        <span class="arrow">▶</span>
+      </summary>
+      <div class="pers-body">
+        <div class="item-row" style="border-top:none;padding-top:0;padding-bottom:6px;">
+          <div class="main"></div>
+          <div class="actions"><button class="iconbtn" data-import-personale="${imp.id}">📥 Importa lista</button></div>
+        </div>
+        ${rows}
+        <div class="hint pers-filtered-hint" style="display:none;">Nessun dipendente corrisponde ai filtri.</div>
+      </div>
+    </details>`;
   }).join('');
   return topWrap('Personale','Dipendenti/operai per impresa', `
+    <section class="block">
+      <label>Cerca per nome</label>
+      <input type="text" id="personale-search" placeholder="Cerca un nominativo…" value="${esc(PERSONALE_FILTRI.search)}">
+      <div class="row2">
+        <div><label>Impresa</label><select id="personale-filter-impresa">${impreseOptions}</select></div>
+        <div><label>Mansione</label><select id="personale-filter-mansione">${mansioniOptions}</select></div>
+      </div>
+    </section>
     ${groups}
     <div class="fab"><button class="btn" data-go="personale-edit-new">＋ Nuovo dipendente</button></div>
   `);
+}
+/* Filtra dal vivo (senza re-render, per non perdere il focus della ricerca) le voci
+   già presenti nel DOM della sezione Personale, in base a PERSONALE_FILTRI. Apre in automatico
+   le imprese (menù a tendina) che contengono risultati quando c'è una ricerca/filtro mansione attivi. */
+function applyPersonaleFiltri(){
+  const q = (PERSONALE_FILTRI.search||'').trim().toLowerCase();
+  const impFilter = PERSONALE_FILTRI.impresaId||'';
+  const mansFilter = PERSONALE_FILTRI.mansione||'';
+  const filtroTestualeAttivo = !!(q || mansFilter);
+  document.querySelectorAll('#app .pers-group').forEach(group=>{
+    const impMatch = !impFilter || impFilter===group.dataset.impresaId;
+    group.style.display = impMatch ? '' : 'none';
+    if(!impMatch) return;
+    const rows = [...group.querySelectorAll('.item-row[data-pers-search]')];
+    let anyVisible = rows.length===0;
+    rows.forEach(row=>{
+      const textMatch = !q || row.dataset.persSearch.includes(q);
+      const mansMatch = !mansFilter || row.dataset.persMansione===mansFilter;
+      const visible = textMatch && mansMatch;
+      row.style.display = visible ? '' : 'none';
+      if(visible) anyVisible = true;
+    });
+    const hint = group.querySelector('.pers-filtered-hint');
+    if(hint) hint.style.display = (rows.length>0 && !anyVisible) ? '' : 'none';
+    if(filtroTestualeAttivo) group.open = anyVisible;
+    else if(impFilter) group.open = true;
+  });
 }
 function viewPersonaleEdit(id){
   const p = id? DB.personale.find(x=>x.id===id) : {id:uid(), nome:'',cognome:'',impresaId:DB.imprese[0]?.id||'',mansione:'',qualifica:'',note:''};
@@ -1132,7 +1212,7 @@ function viewFasiLibreria(){
     <section class="block">
       <h3>Nuova categoria</h3>
       <div class="row2">
-        <input type="text" id="new-fase-categoria" placeholder="Nome nuova categoria (es. Cantieristica – Extra)">
+        <input type="text" id="new-fase-categoria" placeholder="Nome nuova categoria (es. 🏗️ CANTIERISTICA)">
         <button class="btn secondary" data-add-fase-categoria="1">＋ Aggiungi categoria</button>
       </div>
     </section>
@@ -1590,12 +1670,25 @@ function wizImprese(v){
 function wizPresenti(v){
   const groups = v.impreseCoinvolte.map(ic=>{
     const persone = DB.personale.filter(p=>p.impresaId===ic.impresaId);
-    const rows = persone.map(p=>`
-      <div class="personale-check">
+    const rows = persone.map(p=>{
+      const searchBlob = `${p.nome} ${p.cognome} ${p.mansione||''}`.toLowerCase();
+      return `
+      <div class="personale-check" data-pers-search="${esc(searchBlob)}">
         <input type="checkbox" data-presente-check="${p.id}" ${v.presentiPersonale.includes(p.id)?'checked':''}>
         <div class="lbl">${esc(p.nome)} ${esc(p.cognome)}<small>${esc(p.mansione||'')}</small></div>
-      </div>`).join('') || `<div class="hint">Nessun dipendente archiviato per questa impresa. Aggiungili dalla sezione Personale.</div>`;
-    return `<div class="personale-group"><div class="grp-title">${esc(ic.nome)}</div>${rows}</div>`;
+      </div>`;
+    }).join('') || `<div class="hint">Nessun dipendente archiviato per questa impresa. Aggiungili dalla sezione Personale.</div>`;
+    return `
+    <details class="pers-group" data-impresa-id="${ic.impresaId}" open>
+      <summary>
+        <span class="name">${esc(ic.nome)}<span class="cnt">(${persone.length})</span></span>
+        <span class="arrow">▶</span>
+      </summary>
+      <div class="pers-body">
+        ${rows}
+        <div class="hint pers-filtered-hint" style="display:none;">Nessun dipendente corrisponde alla ricerca.</div>
+      </div>
+    </details>`;
   }).join('') || `<div class="hint">Aggiungi prima le imprese coinvolte nel passaggio precedente.</div>`;
 
   const altriRows = v.altriPresenti.map((p,idx)=>`
@@ -1607,6 +1700,7 @@ function wizPresenti(v){
   return `
   <section class="block">
     <h3>Operai/dipendenti presenti</h3>
+    ${v.impreseCoinvolte.length ? `<input type="text" id="wiz-presenti-search" placeholder="Cerca un nominativo…" value="${esc(WIZ_PRESENTI_FILTRI.search)}" style="margin-bottom:10px;">` : ''}
     ${groups}
   </section>
   <section class="block">
@@ -1616,6 +1710,25 @@ function wizPresenti(v){
       <button class="btn secondary" data-add-altro-presente="1">＋ Aggiungi</button>
     </div>
   </section>`;
+}
+
+/* Filtra dal vivo (senza re-render) le righe dipendente nel passaggio "Presenti" del wizard,
+   in base a WIZ_PRESENTI_FILTRI.search. Apre in automatico le imprese con risultati corrispondenti. */
+function applyWizPresentiFiltri(){
+  const q = (WIZ_PRESENTI_FILTRI.search||'').trim().toLowerCase();
+  document.querySelectorAll('#app .pers-group').forEach(group=>{
+    const rows = [...group.querySelectorAll('.personale-check[data-pers-search]')];
+    if(rows.length===0) return;
+    let anyVisible = false;
+    rows.forEach(row=>{
+      const visible = !q || row.dataset.persSearch.includes(q);
+      row.style.display = visible ? '' : 'none';
+      if(visible) anyVisible = true;
+    });
+    const hint = group.querySelector('.pers-filtered-hint');
+    if(hint) hint.style.display = (!anyVisible) ? '' : 'none';
+    if(q) group.open = anyVisible;
+  });
 }
 
 function wizFasi(v){
@@ -1657,7 +1770,7 @@ function wizOsservanze(v){
   const tabs = impreseInVerbale.map(ic=>`<span class="chip ${ic.impresaId===active?'on':''}" data-osserv-tab="${ic.impresaId}">${esc(ic.nome)}</span>`).join('');
 
   let oss = v.osservanze.find(o=>o.impresaId===active);
-  if(!oss){ oss = {impresaId:active, selFrasi:[], noteLibere:'', selPrescrizioni:[], prescrizioniLibere:'', foto:[]}; v.osservanze.push(oss); }
+  if(!oss){ oss = {impresaId:active, selFrasi:[], noteLibere:'', selPrescrizioni:[], prescrizioniLibere:'', noteSpecificheLibere:'', foto:[]}; v.osservanze.push(oss); }
 
   function catBlock(cat){
     const items = DB.frasi.filter(f=>f.categoria===cat);
@@ -1690,7 +1803,7 @@ function wizOsservanze(v){
   </section>
   <section class="block">
     <h3>Foto cantieristica (per questa impresa)</h3>
-    <div class="hint" style="margin-bottom:8px;">Le foto vengono inserite nel documento dopo il testo delle prescrizioni, in fondo all'ultima pagina di questa impresa (dimensione 4×5,33cm).</div>
+    <div class="hint" style="margin-bottom:8px;">Le foto vengono inserite nel documento in fondo alla pagina "OSSERVANZE" di questa impresa, prima della pagina "PRESCRIZIONI" (dimensione 4×5,33cm).</div>
     <div class="photo-grid">
       ${photos}
       <label class="add-photo-btn" for="oss-photo-input">📷<br>Aggiungi foto</label>
@@ -1706,9 +1819,11 @@ function wizOsservanze(v){
   </section>
   <section class="block">
     <h3>Osservanze</h3>
-    <div class="hint" style="margin-bottom:8px;">Queste due categorie hanno una pagina dedicata nel documento, con titolo "OSSERVANZE".</div>
+    <div class="hint" style="margin-bottom:8px;">Queste due categorie hanno una pagina dedicata nel documento, con titolo "OSSERVANZE" (le foto cantieristica di questa impresa compaiono in fondo a questa pagina).</div>
     ${catBlock('daAggiungere')}
     ${catBlock('noteSpecifiche')}
+    <label>Note specifiche / richieste CSE (compilazione libera, da verificare al sopralluogo successivo)</label>
+    <textarea id="w-oss-notespec" data-for="${active}">${esc(oss.noteSpecificheLibere||'')}</textarea>
   </section>
   <section class="block">
     <h3>Prescrizioni all'impresa</h3>
@@ -2030,7 +2145,6 @@ function viewDocumento(){
       <div class="doc-cover-title">
         <div class="l1">Allegato ${esc(DOC_ALLEGATO_NUM)}</div>
         <div class="l2">VERBALE VISITA IN CANTIERE DEL COORDINATORE PER L'ESECUZIONE DEI LAVORI</div>
-        <div class="l3">Aggiornamento del ${esc(DOC_AGGIORNAMENTO)}</div>
       </div>
       <div class="doc-cover-box">${esc([v.tipologiaLavoro, cantiereCoverLabel(v)].filter(Boolean).join(' ').toUpperCase())}</div>
     </div>
@@ -2063,7 +2177,7 @@ function viewDocumento(){
   </div>`;
 
   const presentiListHtml = [...presentiPersonaleNomi(v).map((s,i)=>`${i+1}) ${esc(s)}`), ...v.altriPresenti.map(esc)].join('<br>');
-  const presentiBoxHtml = `<div class="doc-box" style="font-size:11px;line-height:1.5;"><b>Presenti al momento del sopralluogo</b><br>${presentiListHtml||'—'}<br><br><b>il CSE</b> <span class="doc-u">${esc(v.cse)||'—'}</span></div>`;
+  const presentiBoxHtml = `<div class="doc-box" style="font-size:12px;line-height:1.5;"><b>Presenti al momento del sopralluogo</b><br>${presentiListHtml||'—'}<br><br><b>il CSE</b> <span class="doc-u">${esc(v.cse)||'—'}</span></div>`;
 
   const fasiFotoHtml = v.fotoFasi.length ? `<div class="doc-photogrid fasi-fixed">${v.fotoFasi.map(p=>`<div class="p"><img src="${p.img}"><div class="c">${esc(p.caption)}</div></div>`).join('')}</div>` : '';
 
@@ -2098,7 +2212,7 @@ function viewDocumento(){
     const fotoHtml = o.foto.length ? `<div class="doc-photogrid fasi-fixed" data-oss-flow="foto">${o.foto.map(p=>`<div class="p"><img src="${p.img}"><div class="c">${esc(p.caption)}</div></div>`).join('')}</div>` : '';
     const targetChk = impresaFixedRows(v.impreseCoinvolte, o.impresaId);
     const noteBody = frasiByCat('standard')+(o.noteLibere?`<div class="doc-phrase">${esc(o.noteLibere)}</div>`:'');
-    const osservanzeBody = frasiByCat('daAggiungere')+frasiByCat('noteSpecifiche');
+    const osservanzeBody = frasiByCat('daAggiungere')+frasiByCat('noteSpecifiche')+(o.noteSpecificheLibere?`<div class="doc-phrase">${esc(o.noteSpecificheLibere)}</div>`:'');
     const prescrBody = prescr+(o.prescrizioniLibere?`<div class="doc-phrase">${esc(o.prescrizioniLibere)}</div>`:'');
     const dedicatedPage = (barLabel, body, extraHtml) => `
     <div class="doc-page" data-oss-page="1" data-oss-impresa="${impresaNome}">
@@ -2110,8 +2224,8 @@ function viewDocumento(){
       ${docFooter(nextPage(), totalPages)}
     </div>`;
     return dedicatedPage('NOTE', noteBody, '')
-      + dedicatedPage('OSSERVANZE', osservanzeBody, '')
-      + dedicatedPage(`PRESCRIZIONI: ${impresaNome}`, prescrBody, fotoHtml);
+      + dedicatedPage('OSSERVANZE', osservanzeBody, fotoHtml)
+      + dedicatedPage(`PRESCRIZIONI: ${impresaNome}`, prescrBody, '');
   }).join('');
 
   /* ---- sospensione: always present, crossed out when not attiva ---- */
@@ -2128,16 +2242,16 @@ function viewDocumento(){
   const suspBlockHtml = `
     <div class="doc-bar" style="margin-bottom:0;">SOSPENSIONE DEI LAVORI per pericolo grave, imminente e direttamente riscontrato</div>
     <div class="doc-box doc-susp-box" style="border-top:none;">
-      <div style="font-size:11.5px;margin-bottom:6px;"><b>nei confronti di:</b></div>
+      <div style="font-size:12px;margin-bottom:6px;"><b>nei confronti di:</b></div>
       <div class="doc-chk-list">${susContro}</div>
-      <div style="font-size:11.5px;margin:10px 0 4px;"><b>A) Descrizione sintetica della fase/sottofase sospesa e motivazione:</b></div>
-      <div style="font-size:11.5px;margin-bottom:8px;">${esc(s.descrizione)||'—'}</div>
+      <div style="font-size:12px;margin:10px 0 4px;"><b>A) Descrizione sintetica della fase/sottofase sospesa e motivazione:</b></div>
+      <div style="font-size:12px;margin-bottom:8px;">${esc(s.descrizione)||'—'}</div>
       ${suspFotoHtml}
-      <div style="font-size:11.5px;margin:10px 0 4px;"><b>Proposta di intervento per il ripristino in sicurezza:</b></div>
-      <div style="font-size:11.5px;margin-bottom:8px;">${esc(s.propostaTesto)||'—'}</div>
-      <div style="font-size:11.5px;margin:10px 0 4px;"><b>Esito CSE:</b></div>
+      <div style="font-size:12px;margin:10px 0 4px;"><b>Proposta di intervento per il ripristino in sicurezza:</b></div>
+      <div style="font-size:12px;margin-bottom:8px;">${esc(s.propostaTesto)||'—'}</div>
+      <div style="font-size:12px;margin:10px 0 4px;"><b>Esito CSE:</b></div>
       ${susEsitoHtml}
-      <div style="font-size:11.5px;margin:12px 0 4px;"><b>Esito della verifica degli avvenuti adeguamenti:</b></div>
+      <div style="font-size:12px;margin:12px 0 4px;"><b>Esito della verifica degli avvenuti adeguamenti:</b></div>
       ${chkRow(s.verificaAvvenuta, "il pericolo grave, imminente e direttamente riscontrato è stato eliminato (come evidenziato nelle sottostanti fotografie)")}
       ${suspRipristinoHtml}
       ${!s.attiva ? `<svg class="doc-susp-diag" viewBox="0 0 100 100" preserveAspectRatio="none"><line x1="2" y1="2" x2="98" y2="98" stroke="#000" stroke-width="1.5" vector-effect="non-scaling-stroke"/></svg>` : ''}
@@ -2146,7 +2260,7 @@ function viewDocumento(){
   /* ---- firme + distribuzione ---- */
   const destRows = DB.destinatari.filter(d=>v.destinatariSelezionati.includes(d.id))
     .map(d=>chkRow(true, `Sig. <span class="doc-u">${esc(d.nome)}</span>${d.ruolo?' - '+esc(d.ruolo):''}${d.email?' &nbsp; e-mail '+esc(d.email):''}`))
-    .join('') || `<div style="font-size:11px;color:var(--muted);">Nessun destinatario selezionato.</div>`;
+    .join('') || `<div style="font-size:12px;color:var(--muted);">Nessun destinatario selezionato.</div>`;
 
   const invioHtml = chkInline(v.modalitaInvio.email,'e-mail') + chkInline(v.modalitaInvio.fax,'via fax') + chkInline(v.modalitaInvio.brevimano,'a brevi mano');
 
@@ -2389,12 +2503,11 @@ function buildWordHTML(v){
 
   /* ---- page 1: cover — title text in Gill Sans MT / #007AC9, logo pulled toward the corner ---- */
   const COVER_FONT="'Gill Sans MT',Corbel,Calibri,Arial,sans-serif", COVER_BLUE='#007AC9';
-  const page1 = `<div style="font-family:Arial,sans-serif;font-size:12.5px;">
+  const page1 = `<div style="font-family:Arial,sans-serif;font-size:12px;">
     ${logoImg()}
     <div style="text-align:center;margin-top:50px;">
       <div style="color:${COVER_BLUE};font-family:${COVER_FONT};font-weight:bold;font-size:14pt;">Allegato ${esc(DOC_ALLEGATO_NUM)}</div>
-      <div style="color:${COVER_BLUE};font-family:${COVER_FONT};font-weight:bold;font-size:14pt;text-transform:uppercase;margin:8px auto;max-width:480px;line-height:1.4;">VERBALE VISITA IN CANTIERE DEL COORDINATORE PER L'ESECUZIONE DEI LAVORI</div>
-      <div style="color:${COVER_BLUE};font-family:${COVER_FONT};font-weight:bold;font-size:14pt;margin-bottom:22px;">Aggiornamento del ${esc(DOC_AGGIORNAMENTO)}</div>
+      <div style="color:${COVER_BLUE};font-family:${COVER_FONT};font-weight:bold;font-size:14pt;text-transform:uppercase;margin:8px auto 22px;max-width:480px;line-height:1.4;">VERBALE VISITA IN CANTIERE DEL COORDINATORE PER L'ESECUZIONE DEI LAVORI</div>
       <div style="display:inline-block;border:1px solid ${COVER_BLUE};padding:10px 18px;color:${COVER_BLUE};font-family:${COVER_FONT};font-weight:bold;font-size:12.5px;">${esc([v.tipologiaLavoro, cantiereCoverLabel(v)].filter(Boolean).join(' ').toUpperCase())}</div>
     </div>
   </div>`;
@@ -2414,32 +2527,32 @@ function buildWordHTML(v){
     return `<table style="border-collapse:collapse;">${rows}</table>`;
   })();
 
-  const page2 = `<div style="${pageStyle}font-family:Arial,sans-serif;font-size:12.5px;">
+  const page2 = `<div style="${pageStyle}font-family:Arial,sans-serif;font-size:12px;">
     ${logoImg()}
     <table width="100%" style="border:1px solid #000;border-collapse:collapse;margin-bottom:12px;"><tr>
       <td style="background:${NAVY};color:#fff;font-weight:800;font-style:italic;font-size:16px;padding:10px 20px;white-space:nowrap;">VISITA</td>
-      <td style="padding:10px 14px;font-size:12.5px;">
+      <td style="padding:10px 14px;font-size:12px;">
         ${chkInline(true,'del')} <span style="${u()}">${esc(dD||'—')}</span> / <span style="${u()}">${esc(dM||'—')}</span> / <span style="${u()}">${esc(dY||'—')}</span>
         &nbsp;&nbsp;<b>n°</b> <span style="${u()}">${esc(String(v.numero))}</span> / <span style="${u()}">${esc(String(v.anno))}</span>
       </td>
     </tr></table>
-    <div style="font-size:12.5px;margin-bottom:10px;border:1px solid #000;padding:8px 10px;"><b>Cantiere di:</b> <span style="${u()}">${esc(cantiereCittaProv(v))}</span> &nbsp;&nbsp; <b>Sito in:</b> <span style="${u()}">${esc(v.sito)}</span></div>
+    <div style="font-size:12px;margin-bottom:10px;border:1px solid #000;padding:8px 10px;"><b>Cantiere di:</b> <span style="${u()}">${esc(cantiereCittaProv(v))}</span> &nbsp;&nbsp; <b>Sito in:</b> <span style="${u()}">${esc(v.sito)}</span></div>
     <table width="100%" style="border-collapse:collapse;border:1px solid #000;margin-bottom:6px;">
       <tr><td colspan="3" style="background:${NAVY};color:#fff;font-weight:bold;padding:3px 10px;font-size:11px;">ATTIVITA'</td></tr>
-      <tr><td style="border:1px solid #000;padding:1.5px 9px;font-size:10px;width:70%;">Arrivo in cantiere ed inizio sopralluogo</td><td style="border:1px solid #000;padding:1.5px 9px;font-size:10px;text-align:center;">h</td><td style="border:1px solid #000;padding:1.5px 9px;font-size:10px;background:${BLUEBG};color:${NAVY};font-weight:bold;text-align:center;">${v.oraArrivoCantiere||'—'}</td></tr>
-      <tr><td style="border:1px solid #000;padding:1.5px 9px;font-size:10px;">Fine sopralluogo e partenza per la sede aziendale</td><td style="border:1px solid #000;padding:1.5px 9px;font-size:10px;text-align:center;">h</td><td style="border:1px solid #000;padding:1.5px 9px;font-size:10px;background:${BLUEBG};color:${NAVY};font-weight:bold;text-align:center;">${v.oraFineSopralluogo||'—'}</td></tr>
-      <tr><td style="border:1px solid #000;padding:1.5px 9px;font-size:10px;">Arrivo in sede aziendale</td><td style="border:1px solid #000;padding:1.5px 9px;font-size:10px;text-align:center;">h</td><td style="border:1px solid #000;padding:1.5px 9px;font-size:10px;background:${BLUEBG};color:${NAVY};font-weight:bold;text-align:center;">${v.oraArrivoSede||'—'}</td></tr>
-      <tr><td style="border:1px solid #000;padding:1.5px 9px;font-size:10px;">In data ${fmtDate(v.data)}: redazione verbale di sopralluogo</td><td style="border:1px solid #000;padding:1.5px 9px;font-size:10px;text-align:center;">h</td><td style="border:1px solid #000;padding:1.5px 9px;font-size:10px;background:${BLUEBG};color:${NAVY};font-weight:bold;text-align:center;">${v.oraRedazione||'—'}</td></tr>
-      <tr><td style="border:1px solid #000;padding:1.5px 9px;font-size:10px;font-weight:bold;">Per complessive</td><td style="border:1px solid #000;padding:1.5px 9px;font-size:10px;text-align:center;">h</td><td style="border:1px solid #000;padding:1.5px 9px;font-size:10px;background:${BLUEBG};color:${NAVY};font-weight:bold;text-align:center;">${totalHours(v)||'—'}</td></tr>
+      <tr><td style="border:1px solid #000;padding:1.5px 9px;font-size:12px;width:70%;">Arrivo in cantiere ed inizio sopralluogo</td><td style="border:1px solid #000;padding:1.5px 9px;font-size:12px;text-align:center;">h</td><td style="border:1px solid #000;padding:1.5px 9px;font-size:12px;background:${BLUEBG};color:${NAVY};font-weight:bold;text-align:center;">${v.oraArrivoCantiere||'—'}</td></tr>
+      <tr><td style="border:1px solid #000;padding:1.5px 9px;font-size:12px;">Fine sopralluogo e partenza per la sede aziendale</td><td style="border:1px solid #000;padding:1.5px 9px;font-size:12px;text-align:center;">h</td><td style="border:1px solid #000;padding:1.5px 9px;font-size:12px;background:${BLUEBG};color:${NAVY};font-weight:bold;text-align:center;">${v.oraFineSopralluogo||'—'}</td></tr>
+      <tr><td style="border:1px solid #000;padding:1.5px 9px;font-size:12px;">Arrivo in sede aziendale</td><td style="border:1px solid #000;padding:1.5px 9px;font-size:12px;text-align:center;">h</td><td style="border:1px solid #000;padding:1.5px 9px;font-size:12px;background:${BLUEBG};color:${NAVY};font-weight:bold;text-align:center;">${v.oraArrivoSede||'—'}</td></tr>
+      <tr><td style="border:1px solid #000;padding:1.5px 9px;font-size:12px;">In data ${fmtDate(v.data)}: redazione verbale di sopralluogo</td><td style="border:1px solid #000;padding:1.5px 9px;font-size:12px;text-align:center;">h</td><td style="border:1px solid #000;padding:1.5px 9px;font-size:12px;background:${BLUEBG};color:${NAVY};font-weight:bold;text-align:center;">${v.oraRedazione||'—'}</td></tr>
+      <tr><td style="border:1px solid #000;padding:1.5px 9px;font-size:12px;font-weight:bold;">Per complessive</td><td style="border:1px solid #000;padding:1.5px 9px;font-size:12px;text-align:center;">h</td><td style="border:1px solid #000;padding:1.5px 9px;font-size:12px;background:${BLUEBG};color:${NAVY};font-weight:bold;text-align:center;">${totalHours(v)||'—'}</td></tr>
     </table>
     <div style="${box()}">
       <table width="100%" style="margin-bottom:6px;"><tr>
-        <td style="width:50%;font-size:12.5px;"><b>Committente:</b> <span style="${u()}">${esc(v.committente)||'—'}</span></td>
-        <td style="width:50%;font-size:12.5px;"><b>Responsabile Lavori:</b> <span style="${u()}">${esc(v.responsabileLavori)||'—'}</span></td>
+        <td style="width:50%;font-size:12px;"><b>Committente:</b> <span style="${u()}">${esc(v.committente)||'—'}</span></td>
+        <td style="width:50%;font-size:12px;"><b>Responsabile Lavori:</b> <span style="${u()}">${esc(v.responsabileLavori)||'—'}</span></td>
       </tr></table>
       ${impreseChkHtml}
     </div>
-    <div style="font-size:11px;line-height:1.5;${box()}"><b>Presenti al momento del sopralluogo</b><br>${presentiCols||'—'}<br><br><b>il CSE</b> <span style="${u()}">${esc(v.cse)||'—'}</span></div>
+    <div style="font-size:12px;line-height:1.5;${box()}"><b>Presenti al momento del sopralluogo</b><br>${presentiCols||'—'}<br><br><b>il CSE</b> <span style="${u()}">${esc(v.cse)||'—'}</span></div>
     ${v.fotoFasi.length ? `<div style="${bar()}">Fasi di lavoro in atto</div>${fasiFotoHtml}` : ''}
   </div>`;
 
@@ -2447,7 +2560,7 @@ function buildWordHTML(v){
   const ossPages = v.osservanze.map(o=>{
     const impresa = v.impreseCoinvolte.find(i=>i.impresaId===o.impresaId);
     const impresaNome = esc(impresa?impresa.nome:'');
-    const phraseHtml = (ids, list) => list.filter(f=>ids.includes(f.id)).map(f=>`<div style="padding:5px 0;border-top:1px solid #eee;font-size:13.5px;line-height:1.45;">${esc(f.testo)}</div>`).join('');
+    const phraseHtml = (ids, list) => list.filter(f=>ids.includes(f.id)).map(f=>`<div style="padding:5px 0;border-top:1px solid #eee;font-size:12px;line-height:1.45;">${esc(f.testo)}</div>`).join('');
     const stdHtml = phraseHtml(o.selFrasi, DB.frasi.filter(f=>f.categoria==='standard'));
     const daAggHtml = phraseHtml(o.selFrasi, DB.frasi.filter(f=>f.categoria==='daAggiungere'));
     const noteSpecHtml = phraseHtml(o.selFrasi, DB.frasi.filter(f=>f.categoria==='noteSpecifiche'));
@@ -2460,19 +2573,19 @@ function buildWordHTML(v){
       fotoHtml = `<table style="border-collapse:collapse;margin-bottom:8px;">${fotoRows}</table>`;
     }
     const targetChk = impresaFixedRowsWord(v.impreseCoinvolte, o.impresaId);
-    const noteBody = stdHtml+(o.noteLibere?`<div style="padding:5px 0;border-top:1px solid #eee;font-size:13.5px;line-height:1.45;">${esc(o.noteLibere)}</div>`:'');
-    const osservanzeBody = daAggHtml+noteSpecHtml;
-    const prescrBody = prescrHtml+(o.prescrizioniLibere?`<div style="padding:5px 0;border-top:1px solid #eee;font-size:13.5px;line-height:1.45;">${esc(o.prescrizioniLibere)}</div>`:'');
-    const dedicatedPage = (barLabel, body, extraHtml) => `<div style="${pageStyle}font-family:Arial,sans-serif;font-size:12.5px;">
+    const noteBody = stdHtml+(o.noteLibere?`<div style="padding:5px 0;border-top:1px solid #eee;font-size:12px;line-height:1.45;">${esc(o.noteLibere)}</div>`:'');
+    const osservanzeBody = daAggHtml+noteSpecHtml+(o.noteSpecificheLibere?`<div style="padding:5px 0;border-top:1px solid #eee;font-size:12px;line-height:1.45;">${esc(o.noteSpecificheLibere)}</div>`:'');
+    const prescrBody = prescrHtml+(o.prescrizioniLibere?`<div style="padding:5px 0;border-top:1px solid #eee;font-size:12px;line-height:1.45;">${esc(o.prescrizioniLibere)}</div>`:'');
+    const dedicatedPage = (barLabel, body, extraHtml) => `<div style="${pageStyle}font-family:Arial,sans-serif;font-size:12px;">
       ${logoImg()}
       <div style="${bar()}">${barLabel}</div>
       <div style="${box()}">${targetChk}</div>
-      <div style="${box()}">${body || '<div style="font-size:13.5px;">—</div>'}</div>
+      <div style="${box()}">${body || '<div style="font-size:12px;">—</div>'}</div>
       ${extraHtml||''}
     </div>`;
     return dedicatedPage('NOTE', noteBody, '')
-      + dedicatedPage('OSSERVANZE', osservanzeBody, '')
-      + dedicatedPage(`PRESCRIZIONI: ${impresaNome}`, prescrBody, fotoHtml);
+      + dedicatedPage('OSSERVANZE', osservanzeBody, fotoHtml)
+      + dedicatedPage(`PRESCRIZIONI: ${impresaNome}`, prescrBody, '');
   }).join('');
 
   /* ---- sospensione: always present ---- */
@@ -2493,7 +2606,7 @@ function buildWordHTML(v){
   })() : '';
 
     const destinatariRows = DB.destinatari.filter(d=>v.destinatariSelezionati.includes(d.id))
-    .map(d=>chk(true, `Sig. <span style="${u()}">${esc(d.nome)}</span>${d.ruolo?' - '+esc(d.ruolo):''}${d.email?' &nbsp; e-mail '+esc(d.email):''}`)).join('') || '<p style="font-size:11px;color:#5b6b7c;">Nessun destinatario selezionato.</p>';
+    .map(d=>chk(true, `Sig. <span style="${u()}">${esc(d.nome)}</span>${d.ruolo?' - '+esc(d.ruolo):''}${d.email?' &nbsp; e-mail '+esc(d.email):''}`)).join('') || '<p style="font-size:12px;color:#5b6b7c;">Nessun destinatario selezionato.</p>';
   const invioHtml = chkInline(v.modalitaInvio.email,'e-mail') + chkInline(v.modalitaInvio.fax,'via fax') + chkInline(v.modalitaInvio.brevimano,'a brevi mano');
 
   const sigLine = (role,name,img)=>`<table width="100%" style="margin-top:22px;"><tr><td align="right">
@@ -2507,21 +2620,21 @@ function buildWordHTML(v){
   if(v.firmaExtra && v.firmaExtra.nome) firme += sigLine(v.firmaExtra.label||'Altra firma', v.firmaExtra.nome, v.firmaExtra.img);
 
   /* ---- sospensione + firme/distribuzione: condivise sulla stessa pagina finale ---- */
-  const suspAndFirmeBlock = `<div style="${pageStyle}font-family:Arial,sans-serif;font-size:12.5px;">
+  const suspAndFirmeBlock = `<div style="${pageStyle}font-family:Arial,sans-serif;font-size:12px;">
       ${logoImg()}
       <div style="${bar()}margin-bottom:0;">SOSPENSIONE DEI LAVORI per pericolo grave, imminente e direttamente riscontrato</div>
       <div style="border:1px solid #000;border-top:none;padding:10px 12px;">
         ${naStamp}
-        <p style="font-size:11.5px;margin:6px 0;"><b>nei confronti di:</b></p>
+        <p style="font-size:12px;margin:6px 0;"><b>nei confronti di:</b></p>
         ${susContro}
-        <p style="font-size:11.5px;margin:10px 0 4px;"><b>A) Descrizione sintetica della fase/sottofase sospesa e motivazione:</b></p>
-        <p style="font-size:11.5px;">${esc(s.descrizione)||'—'}</p>
+        <p style="font-size:12px;margin:10px 0 4px;"><b>A) Descrizione sintetica della fase/sottofase sospesa e motivazione:</b></p>
+        <p style="font-size:12px;">${esc(s.descrizione)||'—'}</p>
         ${photoTableWord(s.fotoFase)}
-        <p style="font-size:11.5px;margin:10px 0 4px;"><b>Proposta di intervento per il ripristino in sicurezza:</b></p>
-        <p style="font-size:11.5px;">${esc(s.propostaTesto)||'—'}</p>
-        <p style="font-size:11.5px;margin:10px 0 4px;"><b>Esito CSE:</b></p>
+        <p style="font-size:12px;margin:10px 0 4px;"><b>Proposta di intervento per il ripristino in sicurezza:</b></p>
+        <p style="font-size:12px;">${esc(s.propostaTesto)||'—'}</p>
+        <p style="font-size:12px;margin:10px 0 4px;"><b>Esito CSE:</b></p>
         ${susEsitoHtml}
-        <p style="font-size:11.5px;margin:12px 0 4px;"><b>Esito della verifica degli avvenuti adeguamenti:</b></p>
+        <p style="font-size:12px;margin:12px 0 4px;"><b>Esito della verifica degli avvenuti adeguamenti:</b></p>
         ${chk(s.verificaAvvenuta, "il pericolo grave, imminente e direttamente riscontrato è stato eliminato")}
         ${photoTableWord(s.fotoRipristino)}
       </div>
@@ -2667,6 +2780,16 @@ function attachHandlers(){
     };
     reader.readAsText(file);
   });
+
+  const persSearchEl = app.querySelector('#personale-search');
+  const persFiltroImpresaEl = app.querySelector('#personale-filter-impresa');
+  const persFiltroMansioneEl = app.querySelector('#personale-filter-mansione');
+  if(persSearchEl){
+    persSearchEl.addEventListener('input', ()=>{ PERSONALE_FILTRI.search = persSearchEl.value; applyPersonaleFiltri(); });
+    if(persFiltroImpresaEl) persFiltroImpresaEl.addEventListener('change', ()=>{ PERSONALE_FILTRI.impresaId = persFiltroImpresaEl.value; applyPersonaleFiltri(); });
+    if(persFiltroMansioneEl) persFiltroMansioneEl.addEventListener('change', ()=>{ PERSONALE_FILTRI.mansione = persFiltroMansioneEl.value; applyPersonaleFiltri(); });
+    applyPersonaleFiltri();
+  }
   const importPreviewBtn = app.querySelector('[data-import-preview]');
   if(importPreviewBtn) importPreviewBtn.addEventListener('click', ()=>{
     const raw = importRawEl ? importRawEl.value : (IMPORT_PERSONALE?IMPORT_PERSONALE.raw:'');
@@ -2943,6 +3066,11 @@ function attachHandlers(){
     if(el.checked && i<0) arr.push(pid);
     if(!el.checked && i>=0) arr.splice(i,1);
   }));
+  const wizPresentiSearchEl = app.querySelector('#wiz-presenti-search');
+  if(wizPresentiSearchEl){
+    wizPresentiSearchEl.addEventListener('input', ()=>{ WIZ_PRESENTI_FILTRI.search = wizPresentiSearchEl.value; applyWizPresentiFiltri(); });
+    applyWizPresentiFiltri();
+  }
   const addAltroBtn = app.querySelector('[data-add-altro-presente]');
   if(addAltroBtn) addAltroBtn.addEventListener('click', ()=>{
     CURRENT_VERBALE.altriPresenti.push(''); render();
@@ -3184,6 +3312,7 @@ function persistWizardFields(step){
     const oss = v.osservanze.find(o=>o.impresaId===active);
     if(oss){
       const noteEl = g('w-oss-note'); if(noteEl) oss.noteLibere = noteEl.value;
+      const notespecEl = g('w-oss-notespec'); if(notespecEl) oss.noteSpecificheLibere = notespecEl.value;
       const prescrEl = g('w-oss-prescr'); if(prescrEl) oss.prescrizioniLibere = prescrEl.value;
     }
   } else if(step==='sospensione'){
