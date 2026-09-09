@@ -250,34 +250,34 @@
      display:flex column + min-height:full A4 height + footer margin-top:auto keeps the footer pinned to the
      bottom of every printed/exported page regardless of how much content precedes it. */
   .doc-page{background:#fff;max-width:794px;min-height:1123px;margin:0 auto 18px;padding:96px 75px 16px 61px;
-    border:1px solid var(--line);border-radius:6px;font-size:12px;line-height:1.5;color:#111;position:relative;
+    border:1px solid var(--line);border-radius:6px;font-size:9px;line-height:1.5;color:#111;position:relative;
     display:flex;flex-direction:column;}
   /* logo pulled toward the physical top-left corner of the sheet on every page (same position as
      page 1), bleeding past the body margin — matches the negative anchor offsets measured in the source docx */
   .doc-logo-row{margin:-73px 0 16px -35px;}
   /* logo placed at native, unscaled size (208x88px = 1983740x836930 EMU) on every single page in the source docx */
   .doc-logo-img{height:88px;width:208px;object-fit:contain;display:block;}
-  .doc-meta{text-align:right;font-size:10.5px;color:var(--muted);}
+  .doc-meta{text-align:right;font-size:9px;color:var(--muted);}
   .doc-bar{background:var(--doc-navy);color:#fff;font-weight:700;padding:7px 12px;margin:12px 0 10px;
     font-size:12.5px;}
   .doc-bar .sub{font-weight:400;font-style:italic;font-size:10px;}
   .doc-box{border:1px solid #000;padding:10px 12px;margin-bottom:10px;}
-  .doc-box-line{font-size:12px;margin-bottom:10px;border:1px solid #000;padding:8px 10px;}
+  .doc-box-line{font-size:9px;margin-bottom:10px;border:1px solid #000;padding:8px 10px;}
   .doc-u{border-bottom:1px solid #000;padding:0 4px;font-weight:600;color:var(--doc-navy);}
   .doc-table{width:100%;border-collapse:collapse;margin-bottom:10px;}
-  .doc-table td{border:1px solid var(--line);padding:5px 8px;font-size:12px;vertical-align:top;}
+  .doc-table td{border:1px solid var(--line);padding:5px 8px;font-size:9px;vertical-align:top;}
   .doc-cols{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
-  .doc-cols2-plain{display:flex;flex-wrap:wrap;gap:6px 24px;font-size:12px;margin-bottom:10px;}
+  .doc-cols2-plain{display:flex;flex-wrap:wrap;gap:6px 24px;font-size:9px;margin-bottom:10px;}
   .doc-presenti-cols{display:flex;flex-wrap:wrap;gap:2px 28px;}
   .doc-presenti-col{line-height:1.5;}
   .doc-photogrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:8px;}
   .doc-photogrid .p img{width:100%;height:90px;object-fit:cover;border:1px solid var(--line);border-radius:3px;}
-  .doc-photogrid .p .c{font-size:11px;color:var(--muted);margin-top:3px;line-height:1.3;}
+  .doc-photogrid .p .c{font-size:9px;color:var(--muted);margin-top:3px;line-height:1.3;}
   /* fasi di lavoro / osservanze / adeguamenti photos: dimensione fissa 4cm x 5,33cm, 3 per riga — almeno 6 foto (2 righe) ci stanno */
   .doc-photogrid.fasi-fixed{grid-template-columns:repeat(3, 5.33cm);gap:6px;}
   .doc-photogrid.fasi-fixed .p img{height:4cm;}
   /* osservanze: carattere leggibile, pagina libera di occupare tutto lo spazio necessario */
-  .doc-phrase{font-size:12px;line-height:1.45;padding:5px 0;border-top:1px solid #eee;}
+  .doc-phrase{font-size:9px;line-height:1.45;padding:5px 0;border-top:1px solid #eee;}
   .doc-phrase:first-child{border-top:none;}
 
   /* cover page */
@@ -293,13 +293,13 @@
   .doc-visita-wrap{border:1px solid #000;display:flex;margin-bottom:12px;overflow:hidden;}
   .doc-visita-tag{background:var(--doc-navy);color:#fff;font-weight:800;font-style:italic;font-size:16px;
     display:flex;align-items:center;justify-content:center;padding:10px 20px;flex-shrink:0;}
-  .doc-visita-fields{flex:1;display:flex;align-items:center;gap:5px;padding:10px 14px;font-size:12px;flex-wrap:wrap;}
+  .doc-visita-fields{flex:1;display:flex;align-items:center;gap:5px;padding:10px 14px;font-size:9px;flex-wrap:wrap;}
 
   /* attivita table (with navy header row + pale-blue fill cells) */
   /* riquadro orari ATTIVITA' ridotto: meno padding e testo più piccolo, per lasciare spazio alle foto sotto */
   .doc-attivita{width:100%;border-collapse:collapse;margin-bottom:6px;border:1px solid #000;}
   .doc-attivita .bar-row td{background:var(--doc-navy);color:#fff;font-weight:700;padding:3px 10px;font-size:11px;border:none;}
-  .doc-attivita td{border:1px solid #000;padding:1.5px 9px;font-size:12px;}
+  .doc-attivita td{border:1px solid #000;padding:1.5px 9px;font-size:9px;}
   .doc-attivita td.h{width:28px;text-align:center;}
   .doc-attivita td.v{background:var(--blue-bg);color:var(--doc-navy);font-weight:700;min-width:50px;text-align:center;}
   .doc-attivita tr.tot td{font-weight:700;}
@@ -307,7 +307,7 @@
   /* checkbox-style lists (imprese, osservanze target, destinatari, invio) */
   .doc-chk-list{margin:4px 0 10px;}
   .doc-chk-list.boxed{border:1px solid #000;padding:8px 10px 4px;}
-  .doc-chk-row{display:flex;gap:6px;align-items:baseline;font-size:12px;padding:2px 0;}
+  .doc-chk-row{display:flex;gap:6px;align-items:baseline;font-size:9px;padding:2px 0;}
   /* real Unicode ballot-box glyphs (☒ U+2612 / ☐ U+2610), matching the Wingdings-style
      checkbox glyphs used in the source docx, instead of a custom CSS box */
   .doc-chk-box{flex-shrink:0;font-size:13px;line-height:1;}
@@ -320,16 +320,16 @@
   /* signatures */
   .doc-signatures{margin-top:14px;}
   .doc-sigline{margin-top:20px;text-align:right;}
-  .doc-sigline .role{font-size:10.5px;color:#333;line-height:1.3;}
+  .doc-sigline .role{font-size:9px;color:#333;line-height:1.3;}
   .doc-sigline .nameline{border-bottom:1px solid #000;display:inline-block;min-width:220px;height:26px;}
-  .doc-sigline .name{font-size:11.5px;font-weight:600;color:var(--doc-navy);margin-top:3px;}
+  .doc-sigline .name{font-size:9px;font-weight:600;color:var(--doc-navy);margin-top:3px;}
   .doc-sigline .sig-img{display:block;max-height:50px;max-width:220px;margin:0 0 -6px auto;}
 
   /* footer: Gill Sans MT 9pt (12px) codes left, page count right — measured from the docx's
      bottom-of-body 2-row table (ITG code + Allegato code stacked left, "Pagina N di M" right) */
   /* margin-top:auto (with .doc-page as a flex column) pins the footer to the bottom of the page
      box regardless of how much content precedes it, instead of just trailing the content flow */
-  .doc-footer{display:flex;justify-content:space-between;align-items:flex-end;font-size:12px;color:#000;
+  .doc-footer{display:flex;justify-content:space-between;align-items:flex-end;font-size:9px;color:#000;
     font-family:'Gill Sans MT',Corbel,Arial,sans-serif;flex-shrink:0;
     border-top:1px solid var(--line);margin-top:auto;padding-top:6px;}
   .doc-footer .l{line-height:1.4;}
