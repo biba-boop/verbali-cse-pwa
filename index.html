@@ -3853,7 +3853,15 @@ function persistWizardFields(step){
     const sel = g('w-cantiere');
     if(sel && sel.value){
       const c = DB.cantieri.find(x=>x.id===sel.value);
-      if(c){ v.cantiereId=c.id; v.cantiereNome=c.nome; }
+      /* comune/provincia/tipologiaLavoro non hanno un campo dedicato nel wizard: seguono sempre
+         il cantiere selezionato (come già fa blankVerbale() alla creazione), altrimenti restavano
+         quelli del cantiere iniziale anche dopo aver cambiato selezione nel menu a tendina, facendo
+         comparire nel PDF il comune/tipologia del PRIMO cantiere invece di quello scelto. */
+      if(c){
+        v.cantiereId=c.id; v.cantiereNome=c.nome;
+        v.comune = c.comune||''; v.provincia = provinciaSigla(c.provincia);
+        v.tipologiaLavoro = c.tipologiaLavoro||'';
+      }
     }
     if(g('w-sito')) v.sito = g('w-sito').value;
     if(g('w-committente')) v.committente = g('w-committente').value;
