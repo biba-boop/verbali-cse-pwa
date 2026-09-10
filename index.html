@@ -17,6 +17,8 @@
 <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon-180.png">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
 <style>
   /* Font usati SOLO dalla schermata "Aggiornamento in corso" (vedi .update-screen più sotto),
      riprodotta identica al mockup fornito da GDG STUDIO: il resto dell'app usa il font di sistema
@@ -780,15 +782,25 @@ function confirmWithKeyword(message, keyword){
 /* ======================= SINCRONIZZAZIONE CLOUD DELL'INDICE VERBALI (tra dispositivi) =======================
    Sincronizza in tempo reale solo un riepilogo di ogni verbale (cantiere, data, numero, compilatore),
    MAI foto/checklist/firme: quelle restano solo sul dispositivo che ha creato il verbale (in Archivio,
-   i verbali altrui compaiono "di sola consultazione"). Attivo solo nella app pubblicata (capacità "db"
-   della piattaforma Claude); nel file HTML scaricabile resta no-op e l'app funziona solo in locale. */
+   i verbali altrui compaiono "di sola consultazione"). Backend: Firestore (progetto Firebase
+   "bozza-verbali-gdg", accesso libero senza login — vedi firestore.rules), attivo su qualunque
+   dispositivo/browser che apra l'app pubblicata; nel file HTML scaricato a mano resta no-op se gli
+   script Firebase non sono raggiungibili (nessuna connessione) e l'app funziona comunque solo in locale. */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyDwrYLw4zesHsbzpZjJNfxsOFyRHmylc5c",
+  authDomain: "bozza-verbali-gdg.firebaseapp.com",
+  projectId: "bozza-verbali-gdg",
+  storageBucket: "bozza-verbali-gdg.firebasestorage.app",
+  messagingSenderId: "938718270766",
+  appId: "1:938718270766:web:7fe236e2259063c0a696bf"
+};
 let CLOUD_DB = null;
 let CLOUD_VERBALI = [];
 async function initCloudSync(){
   try{
-    if(!window.claude || typeof window.claude.use!=='function') return; // file HTML scaricabile: nessuna sincronizzazione
-    CLOUD_DB = await window.claude.use('db');
-    if(!CLOUD_DB) return; // capacità non disponibile in questa vista
+    if(typeof firebase==='undefined') return; // script Firebase non caricato (es. offline)
+    firebase.initializeApp(FIREBASE_CONFIG);
+    CLOUD_DB = firebase.firestore();
     CLOUD_DB.collection('verbali').orderBy('createdAt','desc').limit(500).onSnapshot(
       snap => { CLOUD_VERBALI = snap.docs.map(d=>({id:d.id, ...d.data()})); if(ROUTE.name==='archivio') render(); },
       err => { console.error('sincronizzazione archivio verbali non riuscita', err); }

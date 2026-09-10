@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'v16';
+const CACHE_VERSION = 'v17';
 const CACHE_NAME = `verbali-cse-${CACHE_VERSION}`;
 
 const APP_SHELL = [
@@ -9,7 +9,9 @@ const APP_SHELL = [
   './icons/icon-512x512.png',
   './icons/apple-touch-icon-180.png',
   'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'
+  'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
+  'https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js',
+  'https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js'
 ];
 
 self.addEventListener('install', (event) => {
