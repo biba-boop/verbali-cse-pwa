@@ -78,7 +78,11 @@
   .topbar button.back{background:none;border:none;color:#fff;font-size:22px;line-height:1;
     padding:2px 6px;cursor:pointer;border-radius:6px;}
   .topbar button.back:active{background:rgba(255,255,255,.15);}
-  .topbar h1{font-size:16px;margin:0;font-weight:600;flex:1;letter-spacing:.2px;}
+  .topbar button.save-draft{background:none;border:1px solid rgba(255,255,255,.5);color:#fff;font-size:12.5px;
+    font-weight:600;line-height:1;padding:6px 10px;cursor:pointer;border-radius:20px;white-space:nowrap;
+    display:flex;align-items:center;gap:4px;flex-shrink:0;}
+  .topbar button.save-draft:active{background:rgba(255,255,255,.15);}
+  .topbar h1{font-size:16px;margin:0;font-weight:600;flex:1;letter-spacing:.2px;min-width:0;}
   .topbar .sub{font-size:11px;opacity:.75;display:block;font-weight:400;margin-top:1px;}
 
   .content{padding:14px;}
@@ -97,7 +101,7 @@
   .menu-btn .cnt{font-size:11px;color:var(--muted);}
   .menu-btn.wide{grid-column:1/-1;flex-direction:row;align-items:center;justify-content:space-between;}
   .menu-btn.primary{background:var(--navy);border-color:var(--navy);}
-  .menu-btn.primary .lbl,.menu-btn.primary .cnt{color:#fff;}
+  .menu-btn.primary .ico,.menu-btn.primary .lbl,.menu-btn.primary .cnt{color:#fff;}
   .menu-btn.primary .cnt{opacity:.8;}
 
   section.block{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);
@@ -112,6 +116,9 @@
     background:#fff;color:var(--ink);font-family:inherit;}
   textarea{min-height:70px;resize:vertical;line-height:1.4;}
   .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;}
+  .row3 label{font-size:11px;margin:10px 0 3px;}
+  .row3 select{font-size:12.5px;padding:6px 6px;min-height:36px;}
   .hint{font-size:11px;color:var(--muted);margin-top:4px;line-height:1.4;}
 
   .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;
@@ -394,6 +401,7 @@
   .doc-footer .l{line-height:1.4;}
   @media (max-width:359px){
     .row2{grid-template-columns:1fr;}
+    .row3{grid-template-columns:1fr;}
     .grid-menu{grid-template-columns:1fr;}
   }
   .btn,.iconbtn,.chip,.menu-btn,.item-row .actions button{min-height:40px;}
@@ -514,7 +522,7 @@ function esc(s){ return (s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;',
 let DB = { cantieri:[], imprese:[], personale:[], frasi:[], destinatari:[], settings:{}, verbaliIndex:[], fasiLavoro:[] };
 let CURRENT_VERBALE = null;
 let IMPORT_PERSONALE = null; // {impresaId, raw, rows:null|Array<{nome,cognome,mansione}>}
-let PERSONALE_FILTRI = {search:'', impresaId:'', mansione:''}; // sezione "Personale": ricerca + filtri per impresa/mansione
+let PERSONALE_FILTRI = {search:'', impresaId:'', mansione:'', ordine:'nome-asc'}; // sezione "Personale": ricerca + filtri per impresa/mansione/ordine
 let WIZ_PRESENTI_FILTRI = {search:''}; // passaggio "Presenti" del wizard: ricerca nominativi
 let IMPORT_DATI_ARCHIVIO = null; // {raw, parsed:null|object, error:null|string} — trasferimento cantieri/imprese/personale tra dispositivi
 /* Stato aperto/chiuso dei riquadri "a tendina" Note/Osservanze/Note specifiche/Prescrizioni (wizard
@@ -589,6 +597,11 @@ const CAT_LABELS = {
 };
 const CAT_ORDER = ['standard','daAggiungere','noteSpecifiche','prescrizioni'];
 const IMPRESA_RUOLI = ['Impresa affidataria','Impresa esecutrice','Impresa in subappalto','Lavoratore autonomo in subappalto'];
+// ruoli predefiniti per i Destinatari (richiesta 10/09/2026, per poterli filtrare come il Personale);
+// un destinatario già archiviato con un ruolo libero non compreso in questo elenco resta comunque
+// modificabile scegliendo "Altro" — vedi RUOLO_ALTRO più sotto — senza perdere il testo originale.
+const RUOLI_DESTINATARIO = ['CSE','Direttore Lavori','Committente','Assistente CSE','Datore di lavoro impresa'];
+const RUOLO_ALTRO = '__altro__';
 // un'impresa coinvolta può ricoprire più ruoli contemporaneamente (es. affidataria ed esecutrice);
 // i verbali salvati prima di questa modifica hanno un singolo campo `ruolo` (stringa) invece di `ruoli` (array).
 function ruoliOf(ic){ return (ic.ruoli && ic.ruoli.length) ? ic.ruoli : (ic.ruolo ? [ic.ruolo] : []); }
@@ -1153,14 +1166,20 @@ function viewPersonale(){
     .map(([k,label])=>`<option value="${esc(k)}" ${PERSONALE_FILTRI.mansione===k?'selected':''}>${esc(label)}</option>`).join('');
   const impreseOptions = `<option value="">Tutte le imprese</option>` + DB.imprese
     .map(i=>`<option value="${i.id}" ${PERSONALE_FILTRI.impresaId===i.id?'selected':''}>${esc(i.nome)}</option>`).join('');
+  const ordineOptions = [
+    {v:'nome-asc', l:'Nome (A-Z)'}, {v:'nome-desc', l:'Nome (Z-A)'}
+  ].map(o=>`<option value="${o.v}" ${PERSONALE_FILTRI.ordine===o.v?'selected':''}>${o.l}</option>`).join('');
 
   const groups = DB.imprese.map(imp=>{
-    const persone = DB.personale.filter(p=>p.impresaId===imp.id);
+    const persone = DB.personale.filter(p=>p.impresaId===imp.id)
+      .sort((a,b)=> (PERSONALE_FILTRI.ordine==='nome-desc'?-1:1)
+        * `${a.nome} ${a.cognome}`.localeCompare(`${b.nome} ${b.cognome}`, 'it'));
     const rows = persone.map(p=>{
       const searchBlob = `${p.nome} ${p.cognome} ${p.mansione||''} ${p.qualifica||''}`.toLowerCase();
       const mansioneKey = (p.mansione||'').trim().toLowerCase();
+      const nomeKey = `${p.nome} ${p.cognome}`.toLowerCase();
       return `
-      <div class="item-row" data-pers-search="${esc(searchBlob)}" data-pers-mansione="${esc(mansioneKey)}">
+      <div class="item-row" data-pers-search="${esc(searchBlob)}" data-pers-mansione="${esc(mansioneKey)}" data-pers-nome="${esc(nomeKey)}">
         <div class="main"><div class="t">${esc(p.nome)} ${esc(p.cognome)}</div><div class="s">${esc(p.mansione||'')}${p.qualifica?' · '+esc(p.qualifica):''}</div></div>
         <div class="actions">
           <button class="iconbtn" data-edit-personale="${p.id}">Modifica</button>
@@ -1188,9 +1207,10 @@ function viewPersonale(){
     <section class="block">
       <label>Cerca per nome</label>
       <input type="text" id="personale-search" placeholder="Cerca un nominativo…" value="${esc(PERSONALE_FILTRI.search)}">
-      <div class="row2">
+      <div class="row3">
         <div><label>Impresa</label><select id="personale-filter-impresa">${impreseOptions}</select></div>
         <div><label>Mansione</label><select id="personale-filter-mansione">${mansioniOptions}</select></div>
+        <div><label>Ordina per</label><select id="personale-filter-ordine">${ordineOptions}</select></div>
       </div>
     </section>
     ${groups}
@@ -1222,6 +1242,19 @@ function applyPersonaleFiltri(){
     if(hint) hint.style.display = (rows.length>0 && !anyVisible) ? '' : 'none';
     if(filtroTestualeAttivo) group.open = anyVisible;
     else if(impFilter) group.open = true;
+  });
+}
+/* Riordina dal vivo (senza re-render, stesso motivo di applyPersonaleFiltri) le righe già presenti
+   in ciascun riquadro impresa quando cambia "Ordina per" — sposta i nodi DOM esistenti invece di
+   ricrearli, così i pulsanti "Modifica"/"Elimina" restano collegati e i riquadri aperti non si
+   richiudono (richiesta 10/09/2026, stesso ordinamento alfabetico già aggiunto ai Destinatari). */
+function reorderPersonaleGroups(){
+  const desc = PERSONALE_FILTRI.ordine==='nome-desc';
+  document.querySelectorAll('#app .pers-group .pers-body').forEach(body=>{
+    const rows = [...body.querySelectorAll('.item-row[data-pers-nome]')];
+    rows.sort((a,b)=> (desc?-1:1) * a.dataset.persNome.localeCompare(b.dataset.persNome, 'it'));
+    const hint = body.querySelector('.pers-filtered-hint');
+    rows.forEach(row=> body.insertBefore(row, hint||null));
   });
 }
 function viewPersonaleEdit(id){
@@ -1520,29 +1553,95 @@ function viewAggiornamento(){
 }
 
 /* ======================= DESTINATARI ======================= */
+// un destinatario ha un ruolo fisso (RUOLI_DESTINATARIO) oppure un ruolo libero (scelto come "Altro" in
+// modifica, o mai compilato) — quest'ultimo caso è filtrabile a parte, così ogni destinatario ricade
+// sempre in una sola categoria del filtro (richiesta 10/09/2026: filtro per ruolo come per il Personale).
+function isRuoloFissoDestinatario(d){
+  return RUOLI_DESTINATARIO.some(r=>r.toLowerCase()===(d.ruolo||'').toLowerCase());
+}
 function viewDestinatari(){
-  const items = DB.destinatari.map(d=>`
-    <div class="item-row">
+  ROUTE.filtriDest = ROUTE.filtriDest || {ruolo:'', ordine:'nome-asc', search:''};
+  const ruoloFiltro = ROUTE.filtriDest.ruolo || '';
+  const ordine = ROUTE.filtriDest.ordine || 'nome-asc';
+  const searchFiltro = (ROUTE.filtriDest.search||'').trim().toLowerCase();
+  const matchRuolo = d => !ruoloFiltro
+    || (ruoloFiltro===RUOLO_ALTRO ? !isRuoloFissoDestinatario(d) : (d.ruolo||'').toLowerCase()===ruoloFiltro.toLowerCase());
+  const matchSearch = d => !searchFiltro
+    || `${d.nome} ${d.ruolo||''} ${d.email||''}`.toLowerCase().includes(searchFiltro);
+
+  const ruoloOptions = [`<option value="">Tutti i ruoli</option>`]
+    .concat(RUOLI_DESTINATARIO.map(r=>`<option value="${esc(r)}" ${ruoloFiltro===r?'selected':''}>${esc(r)}</option>`))
+    .concat([`<option value="${RUOLO_ALTRO}" ${ruoloFiltro===RUOLO_ALTRO?'selected':''}>Altro / non specificato</option>`])
+    .join('');
+  const ordineOptions = [
+    {v:'nome-asc', l:'Nome (A-Z)'}, {v:'nome-desc', l:'Nome (Z-A)'}
+  ].map(o=>`<option value="${o.v}" ${ordine===o.v?'selected':''}>${o.l}</option>`).join('');
+
+  const destFiltrati = DB.destinatari.filter(matchRuolo).filter(matchSearch)
+    .sort((a,b)=> (ordine==='nome-desc'?-1:1) * (a.nome||'').localeCompare((b.nome||''), 'it'));
+  const rowsHtml = destFiltrati.map(d=>{
+    const searchBlob = `${d.nome} ${d.ruolo||''} ${d.email||''}`.toLowerCase();
+    return `
+    <div class="item-row" data-dest-search="${esc(searchBlob)}">
       <div class="main"><div class="t">${esc(d.nome)}</div><div class="s">${esc(d.ruolo||'')} ${d.email?'· '+esc(d.email):''}</div></div>
       <div class="actions">
         <button class="iconbtn" data-edit-dest="${d.id}">Modifica</button>
         <button class="iconbtn" data-del-dest="${d.id}">🗑</button>
       </div>
-    </div>`).join('') || emptyState('✉️','Nessun destinatario','Aggiungi le persone a cui invii i verbali (Committente, DL, RL, imprese…).');
+    </div>`;
+  }).join('');
+  const items = rowsHtml
+    ? rowsHtml + `<div class="hint dest-filtered-hint" id="dest-filtered-hint" style="display:none;">Nessun destinatario corrisponde ai filtri.</div>`
+    : (DB.destinatari.length===0
+      ? emptyState('✉️','Nessun destinatario','Aggiungi le persone a cui invii i verbali (Committente, DL, RL, imprese…).')
+      : `<div class="hint">Nessun destinatario corrisponde ai filtri.</div>`);
+  const filtroHtml = DB.destinatari.length===0 ? '' : `
+    <section class="block">
+      <label>Cerca</label>
+      <input type="text" id="dest-search" placeholder="Cerca per nome, ruolo o email…" value="${esc(ROUTE.filtriDest.search||'')}">
+      <div class="row2">
+        <div><label>Filtra per ruolo</label><select id="dest-filter-ruolo">${ruoloOptions}</select></div>
+        <div><label>Ordina per</label><select id="dest-filter-ordine">${ordineOptions}</select></div>
+      </div>
+    </section>`;
   return topWrap('Destinatari','', `
+    ${filtroHtml}
     <section class="block">${items}</section>
     <div class="fab"><button class="btn" data-go="destinatario-edit-new">＋ Nuovo destinatario</button></div>
   `);
 }
+
+/* Filtro di ricerca Destinatari: aggiorna dal vivo la visibilità delle righe già presenti in pagina
+   (stesso motivo di applyPersonaleFiltri/reorderPersonaleGroups) invece di richiamare render() ad ogni
+   tasto premuto, così il campo di ricerca non perde il focus mentre si digita (richiesta 10/09/2026). */
+function applyDestinatariFiltroRicerca(){
+  const q = (ROUTE.filtriDest && ROUTE.filtriDest.search || '').trim().toLowerCase();
+  let visibili = 0;
+  document.querySelectorAll('#app .item-row[data-dest-search]').forEach(row=>{
+    const match = !q || row.dataset.destSearch.includes(q);
+    row.style.display = match ? '' : 'none';
+    if(match) visibili++;
+  });
+  const hint = document.getElementById('dest-filtered-hint');
+  if(hint) hint.style.display = visibili===0 ? '' : 'none';
+}
 function viewDestinatarioEdit(id){
   const d = id? DB.destinatari.find(x=>x.id===id) : {id:uid(), nome:'',ruolo:'',email:''};
   const isNew = !id;
+  const ruoloValue = d.ruolo||'';
+  const matchFisso = RUOLI_DESTINATARIO.find(r=>r.toLowerCase()===ruoloValue.toLowerCase());
+  const isAltro = !!ruoloValue && !matchFisso;
+  const ruoloOptions = [`<option value="">Seleziona ruolo…</option>`]
+    .concat(RUOLI_DESTINATARIO.map(r=>`<option value="${esc(r)}" ${r===matchFisso?'selected':''}>${esc(r)}</option>`))
+    .concat([`<option value="${RUOLO_ALTRO}" ${isAltro?'selected':''}>✎ Altro (scrivi il ruolo)</option>`])
+    .join('');
   return topWrap(isNew?'Nuovo destinatario':'Modifica destinatario','', `
     <section class="block">
       <label>Nome e cognome *</label>
       <input type="text" id="f-nome" value="${esc(d.nome)}">
-      <label>Ruolo (es. Responsabile ITG, Direttore dei Lavori…)</label>
-      <input type="text" id="f-ruolo" value="${esc(d.ruolo)}">
+      <label>Ruolo</label>
+      <select id="f-ruolo-select">${ruoloOptions}</select>
+      <input type="text" id="f-ruolo-altro" value="${esc(ruoloValue)}" placeholder="Scrivi il ruolo" style="margin-top:6px;${isAltro?'':'display:none;'}">
       <label>Email</label>
       <input type="email" id="f-email" value="${esc(d.email||'')}">
     </section>
@@ -1855,6 +1954,7 @@ function viewWizard(step){
       ? `<button class="back" data-wizard-nav="${STEPS[idx-1]}">‹</button>`
       : `<button class="back" data-go="home-confirm">‹</button>`}
     <h1>Verbale n° ${v.numero}/${v.anno}<span class="sub">${esc(v.cantiereNome)}</span></h1>
+    <button class="save-draft" data-save-bozza-wizard="1" title="Salva il verbale come bozza senza uscire dalla compilazione">💾 Bozza</button>
   </div>
   ${stepperHtml(step)}
   <div class="content">
@@ -1872,7 +1972,7 @@ function wizCantiere(v){
   return `
   <section class="block">
     <label>Cantiere *</label>
-    <select id="w-cantiere">${opts||'<option value="">Nessun cantiere — creane uno prima</option>'}</select>
+    <select id="w-cantiere" data-cantiere-autofill="1">${opts||'<option value="">Nessun cantiere — creane uno prima</option>'}</select>
     <label>Sito in</label>
     <input type="text" id="w-sito" value="${esc(v.sito)}">
     <label>Committente</label>
@@ -3116,10 +3216,12 @@ function attachHandlers(){
   const persSearchEl = app.querySelector('#personale-search');
   const persFiltroImpresaEl = app.querySelector('#personale-filter-impresa');
   const persFiltroMansioneEl = app.querySelector('#personale-filter-mansione');
+  const persFiltroOrdineEl = app.querySelector('#personale-filter-ordine');
   if(persSearchEl){
     persSearchEl.addEventListener('input', ()=>{ PERSONALE_FILTRI.search = persSearchEl.value; applyPersonaleFiltri(); });
     if(persFiltroImpresaEl) persFiltroImpresaEl.addEventListener('change', ()=>{ PERSONALE_FILTRI.impresaId = persFiltroImpresaEl.value; applyPersonaleFiltri(); });
     if(persFiltroMansioneEl) persFiltroMansioneEl.addEventListener('change', ()=>{ PERSONALE_FILTRI.mansione = persFiltroMansioneEl.value; applyPersonaleFiltri(); });
+    if(persFiltroOrdineEl) persFiltroOrdineEl.addEventListener('change', ()=>{ PERSONALE_FILTRI.ordine = persFiltroOrdineEl.value; reorderPersonaleGroups(); });
     applyPersonaleFiltri();
   }
   const importPreviewBtn = app.querySelector('[data-import-preview]');
@@ -3222,18 +3324,34 @@ function attachHandlers(){
     go({name:'home'});
   });
 
+  const destSearchEl = document.getElementById('dest-search');
+  if(destSearchEl) destSearchEl.addEventListener('input', ()=>{ ROUTE.filtriDest.search = destSearchEl.value; applyDestinatariFiltroRicerca(); });
+  const destFiltroRuoloEl = document.getElementById('dest-filter-ruolo');
+  if(destFiltroRuoloEl) destFiltroRuoloEl.addEventListener('change', ()=>{ ROUTE.filtriDest.ruolo = destFiltroRuoloEl.value; render(); });
+  const destFiltroOrdineEl = document.getElementById('dest-filter-ordine');
+  if(destFiltroOrdineEl) destFiltroOrdineEl.addEventListener('change', ()=>{ ROUTE.filtriDest.ordine = destFiltroOrdineEl.value; render(); });
   app.querySelectorAll('[data-edit-dest]').forEach(el=>el.addEventListener('click', ()=>go({name:'destinatario-edit', id:el.dataset.editDest})));
   app.querySelectorAll('[data-del-dest]').forEach(el=>el.addEventListener('click', async ()=>{
     if(!confirm('Eliminare questo destinatario?')) return;
     DB.destinatari = DB.destinatari.filter(c=>c.id!==el.dataset.delDest);
     await sset(KEYS.destinatari, DB.destinatari); render();
   }));
+  // ruolo destinatario: mostra il campo libero solo quando si sceglie "Altro", senza ridisegnare
+  // la pagina (per non perdere gli altri campi non ancora salvati).
+  const ruoloSelectEl = document.getElementById('f-ruolo-select');
+  const ruoloAltroEl = document.getElementById('f-ruolo-altro');
+  if(ruoloSelectEl && ruoloAltroEl) ruoloSelectEl.addEventListener('change', ()=>{
+    ruoloAltroEl.style.display = (ruoloSelectEl.value===RUOLO_ALTRO) ? '' : 'none';
+    if(ruoloSelectEl.value===RUOLO_ALTRO) ruoloAltroEl.focus();
+  });
   const saveDestBtn = app.querySelector('[data-save-dest]');
   if(saveDestBtn) saveDestBtn.addEventListener('click', async ()=>{
     const id = saveDestBtn.dataset.saveDest; const isNew = saveDestBtn.dataset.new==='true';
     const nome = document.getElementById('f-nome').value.trim();
     if(!nome){ toast('Inserisci il nome'); return; }
-    const obj = {id, nome, ruolo:document.getElementById('f-ruolo').value.trim(), email:document.getElementById('f-email').value.trim()};
+    const ruoloSel = document.getElementById('f-ruolo-select').value;
+    const ruolo = (ruoloSel===RUOLO_ALTRO) ? document.getElementById('f-ruolo-altro').value.trim() : ruoloSel;
+    const obj = {id, nome, ruolo, email:document.getElementById('f-email').value.trim()};
     if(isNew) DB.destinatari.push(obj); else DB.destinatari[DB.destinatari.findIndex(c=>c.id===id)]=obj;
     await sset(KEYS.destinatari, DB.destinatari); toast('Destinatario salvato'); go({name:'destinatari'});
   });
@@ -3413,6 +3531,22 @@ function attachHandlers(){
     if(!confirmWithKeyword('Eliminare definitivamente questo verbale? Il contenuto compilato e le foto andranno persi e l\'operazione non è reversibile.', 'GDG')) return;
     await deleteVerbale(el.dataset.delVerbale); render();
   }));
+
+  // wizard: passaggio Cantiere — cambiando il cantiere selezionato, sito/committente/responsabile lavori
+  // e il numero verbale (progressivo per singolo cantiere, vedi nextNumero()) si aggiornano da soli
+  // in base ai dati già archiviati per quel cantiere, invece di restare quelli del cantiere precedente.
+  const wCantiereSel = app.querySelector('[data-cantiere-autofill]');
+  if(wCantiereSel) wCantiereSel.addEventListener('change', ()=>{
+    const c = DB.cantieri.find(x=>x.id===wCantiereSel.value);
+    if(!c) return;
+    const g = id => document.getElementById(id);
+    if(g('w-sito')) g('w-sito').value = c.sito||'';
+    if(g('w-committente')) g('w-committente').value = c.committente||'';
+    if(g('w-rl')) g('w-rl').value = c.responsabileLavori||'';
+    const n = nextNumero(c.id);
+    if(g('w-numero')) g('w-numero').value = n.numero;
+    if(g('w-anno')) g('w-anno').value = n.anno;
+  });
 
   // wizard nav
   app.querySelectorAll('[data-wizard-nav]').forEach(el=>el.addEventListener('click', ()=>{
@@ -3676,6 +3810,18 @@ function attachHandlers(){
   }));
   const rimaneToggle = document.getElementById('w-rimane');
   if(rimaneToggle) rimaneToggle.addEventListener('change', ()=>{ CURRENT_VERBALE.rimaneCantiere = rimaneToggle.checked; });
+
+  // pulsante "💾 Bozza" nell'intestazione, presente in ogni passaggio del wizard: salva lo stato
+  // attuale del verbale (compreso quanto scritto nel passaggio corrente) senza uscire dalla compilazione,
+  // cosi' il lavoro non si perde se l'app viene chiusa o il dispositivo va in errore a meta' compilazione.
+  const saveBozzaWizard = app.querySelector('[data-save-bozza-wizard]');
+  if(saveBozzaWizard) saveBozzaWizard.addEventListener('click', async ()=>{
+    if(!CURRENT_VERBALE) return;
+    persistWizardFields(ROUTE.step);
+    CURRENT_VERBALE.stato = 'bozza';
+    await saveVerbale(CURRENT_VERBALE);
+    toast('Bozza salvata');
+  });
 
   // anteprima actions
   const saveBozza = app.querySelector('[data-save-bozza]');
